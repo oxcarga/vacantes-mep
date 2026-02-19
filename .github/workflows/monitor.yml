@@ -1,0 +1,47 @@
+name: Website Content Monitor
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    # Allow manual trigger from the Actions tab
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Run monitor
+        env:
+          TARGET_URL: ${{ vars.TARGET_URL }}
+          CONTENT_SELECTOR: ${{ vars.CONTENT_SELECTOR }}
+          USE_PLAYWRIGHT: ${{ vars.USE_PLAYWRIGHT }}
+          DROPDOWN_SELECTOR: ${{ vars.DROPDOWN_SELECTOR }}
+          DROPDOWN_OPTION_VALUE: ${{ vars.DROPDOWN_OPTION_VALUE }}
+          DROPDOWN_OPTION_LABEL: ${{ vars.DROPDOWN_OPTION_LABEL }}
+          DROPDOWN_WAIT_AFTER_MS: ${{ vars.DROPDOWN_WAIT_AFTER_MS }}
+          DROPDOWN_CUSTOM: ${{ vars.DROPDOWN_CUSTOM }}
+          DROPDOWN_OPTION_SELECTOR: ${{ vars.DROPDOWN_OPTION_SELECTOR }}
+          TABLE_FILTER_ESPECIALIDAD: ${{ vars.TABLE_FILTER_ESPECIALIDAD }}
+          TABLE_FILTER_ESPECIALIDAD_VALUE: ${{ vars.TABLE_FILTER_ESPECIALIDAD_VALUE }}
+          TABLE_FILTER_PUESTO: ${{ vars.TABLE_FILTER_PUESTO }}
+          TABLE_FILTER_INSTITUCION: ${{ vars.TABLE_FILTER_INSTITUCION }}
+          TABLE_FILTER_LECCIONES: ${{ vars.TABLE_FILTER_LECCIONES }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: npm run monitor

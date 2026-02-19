@@ -1,0 +1,19 @@
+{
+  "name": "website-content-monitor",
+  "version": "1.0.0",
+  "description": "Monitor a website every 30 minutes for new content and get notified",
+  "type": "module",
+  "main": "src/monitor.js",
+  "scripts": {
+    "monitor": "node src/monitor.js",
+    "test": "node src/monitor.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^17.3.1",
+    "playwright": "^1.58.2"
+  }
+}

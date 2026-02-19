@@ -41,6 +41,7 @@ jobs:
           TABLE_FILTER_PUESTO: ${{ vars.TABLE_FILTER_PUESTO }}
           TABLE_FILTER_INSTITUCION: ${{ vars.TABLE_FILTER_INSTITUCION }}
           TABLE_FILTER_LECCIONES: ${{ vars.TABLE_FILTER_LECCIONES }}
+          TABLE_CELL_NAMES: ${{ vars.TABLE_CELL_NAMES }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

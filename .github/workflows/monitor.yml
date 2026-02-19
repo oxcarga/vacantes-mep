@@ -1,4 +1,4 @@
-name: Website Content Monitor
+name: Vacantes de Profesores - MEP
 
 on:
   schedule:

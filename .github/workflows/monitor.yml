@@ -3,7 +3,7 @@ name: Vacantes de Profesores - MEP
 on:
   schedule:
     # Run every 60 minutes
-    - cron: "*/5 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
     # Allow manual trigger from the Actions tab
 

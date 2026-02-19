@@ -189,16 +189,16 @@ async function sendTelegram(message, token, chatId) {
 async function notify(title, body) {
   const message = `${title}\n\n${body}`.trim();
   const ntfyTopic = process.env.NTFY_TOPIC;
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  // const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  // const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
   const promises = [];
   if (ntfyTopic) {
     promises.push(sendNtfy(message, ntfyTopic));
   }
-  if (telegramToken && telegramChatId) {
-    promises.push(sendTelegram(message, telegramToken, telegramChatId));
-  }
+  // if (telegramToken && telegramChatId) {
+  //   promises.push(sendTelegram(message, telegramToken, telegramChatId));
+  // }
 
   await Promise.allSettled(promises);
 }

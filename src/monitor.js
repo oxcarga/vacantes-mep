@@ -115,7 +115,11 @@ async function fetchPageWithBrowser(url) {
     return html;
   } catch (error) {
     console.error("Error fetching page with browser:", error);
-    throw error;
+    // Notiy the error to the user
+    if (error.message.includes("attempting select option action")) {
+      return `[ERROR] No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`;
+    }
+    return `[ERROR] ${error.message}`;
   } finally {
     await browser.close();
   }
@@ -209,6 +213,10 @@ async function run() {
   const html = USE_PLAYWRIGHT
     ? await fetchPageWithBrowser(TARGET_URL)
     : await fetchPage(TARGET_URL);
+  // return error message
+  if (html.includes("[ERROR]")) {
+    return await notify(html, "");
+  }
   // saveHtml(html, "html.txt");
   let content = extractContent(html, CONTENT_SELECTOR || undefined);
   if (TABLE_FILTER_ESPECIALIDAD && TABLE_FILTER_ESPECIALIDAD_VALUE) {
@@ -226,7 +234,7 @@ async function run() {
       : "No hay vacantes disponibles con ese filtro.";
 
   await notify(
-    `Hay ${content.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles`,
+    `Hay ${content.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${DROPDOWN_OPTION_LABEL}`,
     body,
   );
 }

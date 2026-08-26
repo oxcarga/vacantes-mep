@@ -12,6 +12,24 @@ export const DEFAULT_CELL_NAMES = [
 
 const MAX_MESSAGE_LENGTH = 3900;
 
+export function findDropdownOption(available, { value = "", label = "" } = {}) {
+  const wantedValue = String(value || "").trim();
+  const wantedLabel = String(label || "").trim().toLowerCase();
+  return (available ?? []).find(
+    (opt) =>
+      (wantedValue && opt.value === wantedValue) ||
+      (wantedLabel && String(opt.label || "").trim().toLowerCase() === wantedLabel),
+  );
+}
+
+export function formatMissingDropdownOption({ value, label }, available) {
+  const list =
+    available?.length > 0
+      ? available.map((opt) => `${opt.value}: ${opt.label}`).join("; ")
+      : "(ninguna)";
+  return `No existe la opción "${label || ""}" (value ${value || ""}) en el dropdown. Opciones disponibles: ${list}`;
+}
+
 export function vacancyId(vacancy, cellNames = DEFAULT_CELL_NAMES) {
   return cellNames.map((name) => String(vacancy[name] ?? "").trim()).join("\u001f");
 }

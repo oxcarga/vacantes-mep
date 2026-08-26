@@ -8,6 +8,8 @@ import {
   buildNotification,
   DEFAULT_CELL_NAMES,
   diffVacancies,
+  findDropdownOption,
+  formatMissingDropdownOption,
   loadBaseline,
   parseVacancies,
   saveBaseline,
@@ -93,6 +95,37 @@ test("diffVacancies reports no change when the set is the same", () => {
   );
   assert.deepEqual(added, []);
   assert.deepEqual(removed, []);
+});
+
+test("findDropdownOption matches value or label", () => {
+  const available = [
+    { value: "54", label: "Regional Educación Alajuela" },
+    { value: "53", label: "Regional Educación Perez Zeledon" },
+  ];
+  assert.deepEqual(
+    findDropdownOption(available, { value: "53", label: "other" }),
+    available[1],
+  );
+  assert.deepEqual(
+    findDropdownOption(available, {
+      value: "99",
+      label: "Regional Educación Alajuela",
+    }),
+    available[0],
+  );
+  assert.equal(
+    findDropdownOption(available, { value: "1", label: "missing" }),
+    undefined,
+  );
+});
+
+test("formatMissingDropdownOption lists available regionals", () => {
+  const message = formatMissingDropdownOption(
+    { value: "53", label: "Regional Educación Perez Zeledon" },
+    [{ value: "54", label: "Regional Educación Alajuela" }],
+  );
+  assert.match(message, /No existe la opción/);
+  assert.match(message, /54: Regional Educación Alajuela/);
 });
 
 test("vacancyId is stable for the same cells", () => {

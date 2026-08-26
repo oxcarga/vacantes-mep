@@ -7,6 +7,8 @@ import {
   buildNotification,
   DEFAULT_CELL_NAMES,
   diffVacancies,
+  findDropdownOption,
+  formatMissingDropdownOption,
   loadBaseline,
   parseVacancies,
   saveBaseline,
@@ -104,6 +106,86 @@ async function waitForTable(page) {
   }
 }
 
+function missingDropdownOptionError(available) {
+  return new Error(
+    formatMissingDropdownOption(
+      { value: DROPDOWN_OPTION_VALUE, label: DROPDOWN_OPTION_LABEL },
+      available,
+    ),
+  );
+}
+
+async function listNativeOptions(page) {
+  return page.$$eval(`${DROPDOWN_SELECTOR} option`, (opts) =>
+    opts
+      .map((opt) => ({
+        value: opt.value.trim(),
+        label: opt.textContent.trim(),
+      }))
+      .filter((opt) => opt.value),
+  );
+}
+
+function matchDropdownOption(available) {
+  return findDropdownOption(available, {
+    value: DROPDOWN_OPTION_VALUE,
+    label: DROPDOWN_OPTION_LABEL,
+  });
+}
+
+async function selectRegional(page) {
+  if (!DROPDOWN_OPTION_LABEL && !DROPDOWN_OPTION_VALUE) {
+    throw new Error(
+      "Set DROPDOWN_OPTION_VALUE or DROPDOWN_OPTION_LABEL when using DROPDOWN_SELECTOR",
+    );
+  }
+
+  await page.waitForSelector(DROPDOWN_SELECTOR, {
+    state: "visible",
+    timeout: 15000,
+  });
+
+  const tagName = await page
+    .locator(DROPDOWN_SELECTOR)
+    .evaluate((el) => el.tagName);
+  // Native <select> must use selectOption even if DROPDOWN_CUSTOM=1 (MEP form).
+  const useCustom = DROPDOWN_CUSTOM && tagName !== "SELECT";
+
+  if (useCustom) {
+    await page.locator(DROPDOWN_SELECTOR).click();
+    await setTimeout(DROPDOWN_WAIT_AFTER_MS);
+    const optionText = DROPDOWN_OPTION_LABEL || DROPDOWN_OPTION_VALUE;
+    const optionLocator = page
+      .locator(DROPDOWN_OPTION_SELECTOR)
+      .filter({ hasText: optionText.trim() })
+      .first();
+    try {
+      await optionLocator.waitFor({ state: "visible", timeout: 10000 });
+    } catch {
+      throw missingDropdownOptionError([]);
+    }
+    await optionLocator.click();
+  } else {
+    await page.waitForFunction(
+      (sel) => {
+        const el = document.querySelector(sel);
+        return Boolean(el && el.options && el.options.length > 1);
+      },
+      DROPDOWN_SELECTOR,
+      { timeout: 15000 },
+    );
+    const available = await listNativeOptions(page);
+    const match = matchDropdownOption(available);
+    if (!match) {
+      throw missingDropdownOptionError(available);
+    }
+    await page.selectOption(DROPDOWN_SELECTOR, { value: match.value });
+  }
+
+  await setTimeout(DROPDOWN_WAIT_AFTER_MS);
+  await waitForTable(page);
+}
+
 async function fetchPageWithBrowser(url) {
   const { chromium } = await import("playwright");
   let browser;
@@ -113,46 +195,7 @@ async function fetchPageWithBrowser(url) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     if (DROPDOWN_SELECTOR) {
-      if (!DROPDOWN_OPTION_LABEL && !DROPDOWN_OPTION_VALUE) {
-        throw new Error(
-          "Set DROPDOWN_OPTION_VALUE or DROPDOWN_OPTION_LABEL when using DROPDOWN_SELECTOR",
-        );
-      }
-
-      await page.waitForSelector(DROPDOWN_SELECTOR, {
-        state: "visible",
-        timeout: 10000,
-      });
-
-      if (DROPDOWN_CUSTOM) {
-        await page.locator(DROPDOWN_SELECTOR).click();
-        await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-        const optionText = DROPDOWN_OPTION_LABEL || DROPDOWN_OPTION_VALUE;
-        const optionLocator = page
-          .locator(DROPDOWN_OPTION_SELECTOR)
-          .filter({ hasText: optionText.trim() })
-          .first();
-        await optionLocator.waitFor({ state: "visible", timeout: 10000 });
-        await optionLocator.click();
-      } else {
-        await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-        const option = DROPDOWN_OPTION_VALUE
-          ? { value: DROPDOWN_OPTION_VALUE }
-          : { label: DROPDOWN_OPTION_LABEL.trim() };
-        try {
-          await page.selectOption(DROPDOWN_SELECTOR, option);
-        } catch (error) {
-          if (error.message.includes("attempting select option action")) {
-            throw new Error(
-              `No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`,
-            );
-          }
-          throw error;
-        }
-      }
-
-      await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-      await waitForTable(page);
+      await selectRegional(page);
     } else if (CONTENT_SELECTOR && CONTENT_SELECTOR !== "body") {
       await waitForTable(page);
     }

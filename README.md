@@ -36,7 +36,9 @@ Cron local cada hora:
 2. Secretos: `NTFY_TOPIC` y/o `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
 3. El workflow corre cada hora y también se puede lanzar a mano (Actions → Vacantes de Profesores - MEP → Run workflow).
 
-Los valores vacíos de las variables caen en los defaults de Pérez Zeledón / Español. `DROPDOWN_CUSTOM` queda en `1` si la variable del repo está vacía (el formulario del MEP no es un `<select>` nativo).
+Los valores vacíos de las variables caen en los defaults de Pérez Zeledón / Español. `DROPDOWN_CUSTOM` queda en `1` si la variable del repo está vacía; si el control es un `<select>` nativo (como el formulario actual del MEP), el script usa `selectOption` de todos modos.
+
+Si la regional configurada no aparece en el dropdown (hoy Pérez Zeledón a veces no está en la lista), el job falla y el aviso incluye las opciones disponibles.
 
 ### Cron en repos públicos
 

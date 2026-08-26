@@ -1,22 +1,29 @@
 #!/usr/bin/env node
-import { writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { setTimeout } from "node:timers/promises";
 import dotenv from "dotenv";
-import * as cheerio from "cheerio";
+import {
+  buildDiffMessage,
+  createDbClient,
+  ensureSchema,
+  formatOpeningLine,
+  persistAndDiff,
+  recordFailedRun,
+  withIds,
+} from "./db.js";
+import { extractHtml, parseVacancyRows } from "./parse.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "..", ".env") });
 
 const TARGET_URL = (process.env.TARGET_URL || "https://example.com").trim();
 const CONTENT_SELECTOR = process.env.CONTENT_SELECTOR || "body";
-const HTML_PATH = join(process.cwd(), "data");
 
 const USE_PLAYWRIGHT =
   process.env.USE_PLAYWRIGHT === "1" || process.env.USE_PLAYWRIGHT === "true";
 const HEADLESS =
-  process.env.HEADLESS !== "0" && process.env.HEADLESS !== "false"; // optional in .env; default true (headless). Set HEADLESS=0 to show browser
+  process.env.HEADLESS !== "0" && process.env.HEADLESS !== "false";
 const DROPDOWN_SELECTOR = (process.env.DROPDOWN_SELECTOR || "").trim();
 const DROPDOWN_OPTION_VALUE = (process.env.DROPDOWN_OPTION_VALUE || "").trim();
 const DROPDOWN_OPTION_LABEL = (process.env.DROPDOWN_OPTION_LABEL || "").trim();
@@ -30,26 +37,17 @@ const DROPDOWN_OPTION_SELECTOR =
   (process.env.DROPDOWN_OPTION_SELECTOR || "").trim() ||
   ".mud-list-item, [role='option'], .mud-select-item";
 
-const TABLE_FILTER_DATA_LABEL = (
-  process.env.TABLE_FILTER_DATA_LABEL || ""
-).trim();
-const TABLE_FILTER_PUESTO = (process.env.TABLE_FILTER_PUESTO || "").trim();
 const TABLE_FILTER_ESPECIALIDAD_VALUE = (
   process.env.TABLE_FILTER_ESPECIALIDAD_VALUE || ""
-).trim();
-const TABLE_FILTER_ESPECIALIDAD = (
-  process.env.TABLE_FILTER_ESPECIALIDAD || ""
-).trim();
-const TABLE_FILTER_INSTITUCION = (
-  process.env.TABLE_FILTER_INSTITUCION || ""
-).trim();
-const TABLE_FILTER_LECCIONES = (
-  process.env.TABLE_FILTER_LECCIONES || ""
 ).trim();
 const TABLE_CELL_NAMES = (process.env.TABLE_CELL_NAMES || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+const DATABASE_URL = (process.env.DATABASE_URL || "").trim();
+const DATABASE_AUTH_TOKEN = (process.env.DATABASE_AUTH_TOKEN || "").trim();
+const REGIONAL = DROPDOWN_OPTION_LABEL || DROPDOWN_OPTION_VALUE || "";
 
 async function fetchPage(url) {
   const res = await fetch(url, {
@@ -66,7 +64,14 @@ async function fetchPage(url) {
 
 async function fetchPageWithBrowser(url) {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: HEADLESS });
+    const launchArgs = (process.env.PLAYWRIGHT_LAUNCH_ARGS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const browser = await chromium.launch({
+      headless: HEADLESS,
+      args: launchArgs.length > 0 ? launchArgs : undefined,
+    });
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -111,11 +116,9 @@ async function fetchPageWithBrowser(url) {
       }
     }
 
-    const html = await page.content();
-    return html;
+    return await page.content();
   } catch (error) {
     console.error("Error fetching page with browser:", error);
-    // Notiy the error to the user
     if (error.message.includes("attempting select option action")) {
       return `[ERROR] No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`;
     }
@@ -125,61 +128,22 @@ async function fetchPageWithBrowser(url) {
   }
 }
 
-function extractContent(html, selector) {
-  const $ = cheerio.load(html);
-  const el = selector ? $(selector).first() : $("body").first();
-  if (!el.length) {
-    return $.html();
-  }
-  return el.html() || $.html();
-}
-
-/**
- * Keeps only table rows where the cell with data-label={dataLabel} has text equal to filterValue (trimmed).
- * Returns the filtered table HTML string.
- */
-function filterTableRowsByCell(html, dataLabel, filterValue) {
-  const arrayRows = [];
-  if (!dataLabel || filterValue === undefined || filterValue === "") {
-    return html;
-  }
-  const $ = cheerio.load(html);
-  const value = String(filterValue).trim();
-  $("tbody tr").each((_, row) => {
-    const $row = $(row);
-    const cell = $row.find(`td[data-label="${dataLabel}"]`).first();
-    const cellText = cell.text().trim();
-    if (cellText !== value) {
-      $row.remove();
-    } else {
-      const cellValues = TABLE_CELL_NAMES.map((name) => {
-        return $row.find(`td[data-label="${name}"]`).text().trim();
-      });
-      arrayRows.push(cellValues);
-    }
-  });
-  // saveHtml(JSON.stringify(arrayRows, null, 2), "vacantes.json");
-  // return JSON.stringify(arrayRows, null, 2);
-  return arrayRows;
-}
-
-// function saveHtml(html, filename) {
-//   writeFileSync(join(HTML_PATH, filename), html);
-// }
-
 async function sendNtfy(message, topic) {
   if (!topic) return;
-  await fetch(`https://ntfy.sh/${topic}`, {
+  const res = await fetch(`https://ntfy.sh/${topic}`, {
     method: "POST",
     body: message,
     headers: { "Content-Type": "text/plain" },
   });
+  if (!res.ok) {
+    console.error(`ntfy.sh failed: HTTP ${res.status}`);
+  }
 }
 
 async function sendTelegram(message, token, chatId) {
   if (!token || !chatId) return;
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -188,55 +152,115 @@ async function sendTelegram(message, token, chatId) {
       disable_web_page_preview: true,
     }),
   });
+  if (!res.ok) {
+    console.error(`Telegram failed: HTTP ${res.status}`);
+  }
 }
 
 async function notify(title, body) {
   const message = `${title}\n\n${body}`.trim();
   const ntfyTopic = process.env.NTFY_TOPIC;
-  // const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  // const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
   const promises = [];
   if (ntfyTopic) {
     promises.push(sendNtfy(message, ntfyTopic));
   }
-  // if (telegramToken && telegramChatId) {
-  //   promises.push(sendTelegram(message, telegramToken, telegramChatId));
-  // }
+  if (telegramToken && telegramChatId) {
+    promises.push(sendTelegram(message, telegramToken, telegramChatId));
+  }
 
   await Promise.allSettled(promises);
 }
 
+function formatFullList(openings) {
+  if (openings.length === 0) {
+    return "No hay vacantes disponibles con ese filtro.";
+  }
+  return openings.map(formatOpeningLine).join("\n____\n");
+}
+
 async function run() {
-  console.log(`[${new Date().toISOString()}] Checking ${TARGET_URL}`);
+  const startedAt = new Date().toISOString();
+  console.log(`[${startedAt}] Checking ${TARGET_URL}`);
 
-  const html = USE_PLAYWRIGHT
-    ? await fetchPageWithBrowser(TARGET_URL)
-    : await fetchPage(TARGET_URL);
-  // return error message
-  if (html.includes("[ERROR]")) {
-    return await notify(html, "");
+  const client = createDbClient(DATABASE_URL, DATABASE_AUTH_TOKEN);
+  if (client) {
+    await ensureSchema(client);
+    console.log(`Using database ${DATABASE_URL.replace(/:[^@/]+@/, ":")}`);
+  } else {
+    console.log("DATABASE_URL not set; notifying on every run (no scrape cache)");
   }
-  // saveHtml(html, "html.txt");
-  let content = extractContent(html, CONTENT_SELECTOR || undefined);
-  if (TABLE_FILTER_ESPECIALIDAD && TABLE_FILTER_ESPECIALIDAD_VALUE) {
-    content = filterTableRowsByCell(
-      content,
-      TABLE_FILTER_ESPECIALIDAD,
-      TABLE_FILTER_ESPECIALIDAD_VALUE,
+
+  try {
+    const html = USE_PLAYWRIGHT
+      ? await fetchPageWithBrowser(TARGET_URL)
+      : await fetchPage(TARGET_URL);
+
+    if (typeof html === "string" && html.includes("[ERROR]")) {
+      if (client) {
+        await recordFailedRun(client, { startedAt, error: html });
+      }
+      return await notify(html, "");
+    }
+
+    const tableHtml = extractHtml(html, CONTENT_SELECTOR || undefined);
+    const openings = withIds(
+      parseVacancyRows(tableHtml, {
+        especialidadFilter: TABLE_FILTER_ESPECIALIDAD_VALUE || undefined,
+        cellNames: TABLE_CELL_NAMES,
+      }),
+      REGIONAL,
     );
-  }
-  // const vacantes = JSON.parse(content);
-  const lines = content.map((v) => `• ${v.join(" | ")}`);
-  const body =
-    content.length > 0
-      ? lines.join("\n____\n")
-      : "No hay vacantes disponibles con ese filtro.";
 
-  await notify(
-    `Hay ${content.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${DROPDOWN_OPTION_LABEL}`,
-    body,
-  );
+    console.log(`Parsed ${openings.length} openings`);
+
+    if (!client) {
+      await notify(
+        `Hay ${openings.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${REGIONAL}`,
+        formatFullList(openings),
+      );
+      return;
+    }
+
+    const diff = await persistAndDiff(client, openings, {
+      regional: REGIONAL,
+      startedAt,
+    });
+    const hasChanges =
+      diff.added.length > 0 ||
+      diff.removed.length > 0 ||
+      diff.changed.length > 0;
+
+    if (!hasChanges) {
+      if (diff.isFirstRun) {
+        await notify(
+          `Hay ${openings.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${REGIONAL}`,
+          formatFullList(openings),
+        );
+      } else {
+        console.log(
+          `No changes (${openings.length} openings, hash ${diff.contentHash.slice(0, 8)})`,
+        );
+      }
+      return;
+    }
+
+    const { title, body } = buildDiffMessage({
+      specialty: TABLE_FILTER_ESPECIALIDAD_VALUE || "todas",
+      regional: REGIONAL || TARGET_URL,
+      added: diff.added,
+      removed: diff.removed,
+      changed: diff.changed,
+      total: openings.length,
+    });
+    await notify(title, body);
+  } finally {
+    if (client && typeof client.close === "function") {
+      client.close();
+    }
+  }
 }
 
 run().catch((err) => {

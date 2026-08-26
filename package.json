@@ -1,17 +1,19 @@
 {
   "name": "website-content-monitor",
   "version": "1.0.0",
-  "description": "Monitor a website every 30 minutes for new content and get notified",
+  "description": "Hourly MEP vacancy scraper with Playwright, SQLite/Turso cache, and change notifications",
   "type": "module",
   "main": "src/monitor.js",
   "scripts": {
     "monitor": "node src/monitor.js",
-    "test": "node src/monitor.js"
+    "test": "node --test ./test/db.test.js",
+    "spike:mep": "node scripts/spike-mep-api.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "cheerio": "^1.0.0",
     "dotenv": "^17.3.1",
     "playwright": "^1.58.2"

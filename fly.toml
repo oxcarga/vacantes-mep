@@ -1,0 +1,30 @@
+# Optional Stage 2: Fly.io scheduled machine (Playwright + SQLite volume).
+#   fly launch --no-deploy --copy-config
+#   fly volumes create vacantes_data --size 1
+#   fly secrets set NTFY_TOPIC=... TARGET_URL=... (or use [env] below)
+#   fly deploy
+#   fly machine list
+#   fly machine update <id> --schedule "0 * * * *"
+#
+# Prefer Turso instead of a volume by setting DATABASE_URL + DATABASE_AUTH_TOKEN secrets.
+
+app = "vacantes-mep"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DATABASE_URL = "file:/app/data/vacantes.db"
+  USE_PLAYWRIGHT = "1"
+  HEADLESS = "1"
+  PLAYWRIGHT_LAUNCH_ARGS = "--disable-dev-shm-usage,--no-sandbox"
+
+[[mounts]]
+  source = "vacantes_data"
+  destination = "/app/data"
+
+[[vm]]
+  memory = "1024mb"
+  cpu_kind = "shared"
+  cpus = 1

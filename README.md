@@ -1,117 +1,97 @@
-# Website Content Monitor
+# Vacantes MEP monitor
 
-Monitor a website every 30 minutes for new content. When changes are detected, you receive a notification via Telegram or ntfy.sh.
+Hourly scraper for teacher vacancies on the Costa Rican MEP form (`apps.mep.go.cr/formulario`). It launches Chromium (Playwright), selects a regional, filters the MudBlazor table, stores openings, and notifies **only when the list changes**.
 
 ## Flow
 
-1. **Fetch** — HTTP request to the target URL (or run a real browser with Playwright if the page needs JavaScript or a dropdown)
-2. **Parse** — Extract content (optional CSS selector)
-3. **Compare** — Hash content and compare with last run
-4. **Persist** — Store baseline for next run
-5. **Notify** — Send Telegram and/or ntfy.sh notification on change
+1. **Fetch** — Playwright (required) or plain HTTP
+2. **Parse** — Cheerio table rows (`td[data-label]`)
+3. **Diff** — Compare with `openings` in SQLite/Turso
+4. **Persist** — Upsert current rows, mark gone ones inactive, write `scrape_runs`
+5. **Notify** — ntfy.sh and/or Telegram on new / gone / changed rows (or every run if `DATABASE_URL` is unset)
 
-## Quick Start (Local)
+## Quick start (local)
 
 ```bash
 cp .env.example .env
-# Edit .env: set TARGET_URL and at least one of NTFY_TOPIC or TELEGRAM_*
+# Set TARGET_URL, filters, NTFY_TOPIC, and DATABASE_URL=file:data/vacantes.db
 
 npm install
+npx playwright install chromium
+npm test
 npm run monitor
 ```
 
-Run locally with `cron` for 30-minute checks:
+## GitHub Actions (current production)
+
+The workflow in [`.github/workflows/monitor.yml`](.github/workflows/monitor.yml) runs hourly on `ubuntu-latest`.
+
+1. Add the same **variables** as before (`TARGET_URL`, `USE_PLAYWRIGHT`, dropdown/table filters, …).
+2. Add **secrets**:
+   - `NTFY_TOPIC` (and Telegram if you use it)
+   - `DATABASE_URL` — Turso URL, e.g. `libsql://YOUR-DB.turso.io`
+   - `DATABASE_AUTH_TOKEN` — Turso token
+3. Create a free [Turso](https://turso.tech) database (ephemeral GHA disks cannot keep SQLite). Without those secrets the job still scrapes but notifies every hour with no cache.
 
 ```bash
-# Edit crontab: crontab -e
-*/30 * * * * cd /path/to/website-content-monitor && npm run monitor
+turso db create vacantes-mep
+turso db show vacantes-mep --url
+turso db tokens create vacantes-mep
 ```
 
-## GitHub Actions (Cloud)
+## Docker / VPS (when you want cron + a local DB)
 
-1. Fork or clone this repo
-2. Add repository secrets/variables:
-   - **TARGET_URL** (required) — URL to monitor (e.g. `https://example.com`)
-   - **CONTENT_SELECTOR** (optional) — CSS selector (e.g. `.main-content`, `#articles`)
-   - **NTFY_TOPIC** (optional) — ntfy.sh topic for push notifications
-   - **TELEGRAM_BOT_TOKEN** (optional) — From @BotFather
-   - **TELEGRAM_CHAT_ID** (optional) — Your chat ID
-
-3. Push to GitHub. The workflow runs every 30 minutes.
-
-### Getting Telegram credentials
-
-1. Message [@BotFather](https://t.me/BotFather), create a bot, copy the token
-2. Send a message to your new bot
-3. Visit `https://api.telegram.org/bot<TOKEN>/getUpdates` — your `chat.id` is in the response
-
-### Getting ntfy.sh notifications
-
-1. Pick a unique topic name (e.g. `my-website-monitor`)
-2. Add `NTFY_TOPIC=my-website-monitor` to secrets
-3. Subscribe: open https://ntfy.sh/my-website-monitor or use the ntfy app
-
-## Pages that need a dropdown or JavaScript
-
-If the data you want to monitor only appears **after** selecting an option in a dropdown (or after other client-side JavaScript runs), use **Playwright** so the script runs a real browser, selects the dropdown, then captures the resulting content.
-
-1. Set `USE_PLAYWRIGHT=1` (or `true`) in your `.env`.
-2. Set dropdown options:
-   - **DROPDOWN_SELECTOR** — CSS selector for the dropdown (e.g. `#regionalSelect`, `select[name=range]`).
-   - **DROPDOWN_OPTION_VALUE** or **DROPDOWN_OPTION_LABEL** — which option to select (value or visible text).
-   - **DROPDOWN_WAIT_AFTER_MS** — milliseconds to wait after selecting (default: `2000`).
-3. **Custom dropdowns (MudBlazor, etc.):** If the dropdown is not a native `<select>` (e.g. MudBlazor, Material-UI), set **DROPDOWN_CUSTOM=1**. The script will click the dropdown to open it, then click the option by text. Optionally set **DROPDOWN_OPTION_SELECTOR** (default: `.mud-list-item, [role='option'], .mud-select-item`) if your app uses different option elements.
-4. **Debug in visible browser:** Set **HEADLESS=0** to see the browser while the script runs.
-
-Example for a **native `<select>`**:
+Use this when GitHub Actions cron is too coarse, you want Chromium cached in an image, or you add a small UI later.
 
 ```bash
-TARGET_URL=https://example.com/dashboard
-USE_PLAYWRIGHT=1
-DROPDOWN_SELECTOR=#dateRange
-DROPDOWN_OPTION_LABEL=Last 7 days
-CONTENT_SELECTOR=.report-content
+cp .env.example .env
+docker compose up -d --build   # hourly via supercronic
+docker compose logs -f scraper
+docker compose --profile once run --rm scraper-once   # one-off
 ```
 
-Example for a **custom dropdown (e.g. MudBlazor)**:
+Needs ~1 GB RAM (headless Chromium). SQLite lives on the `vacantes-data` volume (`DATABASE_URL=file:/app/data/vacantes.db`).
+
+## Fly.io (managed alternative)
+
+[`fly.toml`](fly.toml) builds the same Playwright image. After `fly deploy`:
 
 ```bash
-TARGET_URL=https://apps.example.com/form
-USE_PLAYWRIGHT=1
-DROPDOWN_CUSTOM=1
-DROPDOWN_SELECTOR=#regionalSelect
-DROPDOWN_OPTION_LABEL=Regional Educación Perez Zeledon
-CONTENT_SELECTOR=.mud-table-root
-DROPDOWN_WAIT_AFTER_MS=10000
+fly volumes create vacantes_data --size 1
+fly secrets set NTFY_TOPIC=...
+fly deploy
+fly machine update <id> --schedule "0 * * * *"
 ```
 
-First run will download the browser (Chromium) if needed. For **GitHub Actions**, add a step to install the browser, e.g. `npx playwright install chromium`.
+Or skip the volume and point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso.
 
-## Environment Variables
+## Why not Vercel / Lambda?
+
+`npm run spike:mep` (see [`scripts/mep-api-spike-findings.json`](scripts/mep-api-spike-findings.json)) shows the MEP page is **Blazor Server + MudBlazor**. Static HTML has no vacancy table, and there is no public JSON API. Chromium stays required, so host on GitHub Actions, Docker/VPS, or Fly — not Vercel/Netlify/stock Lambda.
+
+## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | TARGET_URL | Yes | URL to monitor |
 | CONTENT_SELECTOR | No | CSS selector for content (default: body) |
-| USE_PLAYWRIGHT | No | Set to `1` or `true` to use browser (for JS/dropdown pages) |
-| DROPDOWN_SELECTOR | No | CSS selector for dropdown when using Playwright |
-| DROPDOWN_OPTION_VALUE | No | Option value to select (native `<select>`) |
-| DROPDOWN_OPTION_LABEL | No | Option label to select (text of the option) |
-| DROPDOWN_CUSTOM | No | Set to `1` for custom dropdowns (MudBlazor, etc.): click to open, then click option |
-| DROPDOWN_OPTION_SELECTOR | No | Selector for option elements when DROPDOWN_CUSTOM=1 (default: .mud-list-item, [role='option']) |
-| DROPDOWN_WAIT_AFTER_MS | No | Ms to wait after selecting dropdown (default: 2000) |
-| HEADLESS | No | Set to `0` or `false` to show browser (default: true) |
-| TABLE_FILTER_DATA_LABEL | No | Keep only rows where `<td data-label="...">` equals TABLE_FILTER_VALUE (e.g. Especialidad) |
-| TABLE_FILTER_VALUE | No | Text that the data-label cell must have (e.g. Español). Use with TABLE_FILTER_DATA_LABEL. |
-| NTFY_TOPIC | No | ntfy.sh topic for notifications |
-| TELEGRAM_BOT_TOKEN | No | Telegram bot token |
-| TELEGRAM_CHAT_ID | No | Telegram chat ID |
-| BASELINE_PATH | No | Path to baseline file (default: ./data/baseline.json) |
+| USE_PLAYWRIGHT | Yes for MEP | `1` to use Chromium |
+| DROPDOWN_SELECTOR | No | CSS selector for dropdown |
+| DROPDOWN_OPTION_VALUE / DROPDOWN_OPTION_LABEL | No | Option to select |
+| DROPDOWN_CUSTOM | Yes for MEP | `1` for MudBlazor/custom dropdowns |
+| DROPDOWN_OPTION_SELECTOR | No | Option elements when DROPDOWN_CUSTOM=1 |
+| DROPDOWN_WAIT_AFTER_MS | No | Wait after selecting (default 2000) |
+| HEADLESS | No | `0` to show the browser |
+| PLAYWRIGHT_LAUNCH_ARGS | No | Comma-separated Chromium flags (set in Docker) |
+| TABLE_FILTER_ESPECIALIDAD | No | Column `data-label` to filter (e.g. Especialidad) |
+| TABLE_FILTER_ESPECIALIDAD_VALUE | No | Filter value (e.g. Español) |
+| TABLE_CELL_NAMES | No | Columns to store/notify |
+| DATABASE_URL | Recommended | `file:data/vacantes.db` or Turso `libsql://...` |
+| DATABASE_AUTH_TOKEN | Turso only | Turso auth token |
+| NTFY_TOPIC | No | ntfy.sh topic |
+| TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID | No | Telegram bot |
 
-## Manual run
+## Schema
 
-```bash
-TARGET_URL=https://example.com npm run monitor
-```
-
-Or use **Actions → Website Content Monitor → Run workflow** in GitHub.
+- `openings` — natural key `regional + vacante + institucion + especialidad`; `active` flag; `first_seen` / `last_seen`
+- `scrape_runs` — timestamp, ok/error, row count, content hash, new/gone/changed counts

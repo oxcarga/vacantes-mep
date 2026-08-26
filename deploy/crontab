@@ -1,0 +1,2 @@
+# Hourly scrape. supercronic runs this inside the scraper container.
+0 * * * * node src/monitor.js

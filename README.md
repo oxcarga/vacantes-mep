@@ -1,43 +1,59 @@
-# Website Content Monitor
+# Vacantes MEP
 
-Monitor a website every 30 minutes for new content. When changes are detected, you receive a notification via Telegram or ntfy.sh.
+Monitor the [MEP vacancy form](https://apps.mep.go.cr/formulario) and get a phone notification when postings appear or disappear. Notifications go to [ntfy.sh](https://ntfy.sh) and/or Telegram.
+
+The hourly GitHub Action scrapes a regional (MudBlazor dropdown), filters the table (for example Español in Pérez Zeledón), compares against the last run, and notifies **only when the vacancy set changes**.
 
 ## Flow
 
-1. **Fetch** — HTTP request to the target URL (or run a real browser with Playwright if the page needs JavaScript or a dropdown)
-2. **Parse** — Extract content (optional CSS selector)
-3. **Compare** — Hash content and compare with last run
-4. **Persist** — Store baseline for next run
-5. **Notify** — Send Telegram and/or ntfy.sh notification on change
+1. **Fetch** — Open the MEP form with Playwright and select the regional
+2. **Parse** — Read table rows into vacancy objects
+3. **Filter** — Keep rows matching especialidad (and optional puesto / institución / lecciones)
+4. **Diff** — Compare with `data/baseline.json` from the previous run
+5. **Notify** — Send ntfy.sh and/or Telegram only on first run or when vacancies are added/removed
+6. **Persist** — Save the current list as the next baseline (GitHub Actions cache)
+
+On the **first run** (no baseline yet) you get a short “monitoring started, N vacantes” message so the phone is confirmed working. Later runs stay silent if nothing changed.
 
 ## Quick Start (Local)
 
 ```bash
 cp .env.example .env
-# Edit .env: set TARGET_URL and at least one of NTFY_TOPIC or TELEGRAM_*
+# Edit .env: set NTFY_TOPIC and/or TELEGRAM_* , plus filters for your regional
 
 npm install
+npx playwright install chromium
+npm test
 npm run monitor
 ```
 
-Run locally with `cron` for 30-minute checks:
+Run locally with `cron` for hourly checks:
 
 ```bash
 # Edit crontab: crontab -e
-*/30 * * * * cd /path/to/website-content-monitor && npm run monitor
+0 * * * * cd /path/to/vacantes-mep && npm run monitor
 ```
 
 ## GitHub Actions (Cloud)
 
 1. Fork or clone this repo
-2. Add repository secrets/variables:
-   - **TARGET_URL** (required) — URL to monitor (e.g. `https://example.com`)
-   - **CONTENT_SELECTOR** (optional) — CSS selector (e.g. `.main-content`, `#articles`)
+2. Add repository **variables** (Settings → Secrets and variables → Actions → Variables):
+   - **TARGET_URL** — `https://apps.mep.go.cr/formulario`
+   - **USE_PLAYWRIGHT** — `1`
+   - **DROPDOWN_SELECTOR** — `#regionalSelect`
+   - **DROPDOWN_OPTION_LABEL** — e.g. `Regional Educación Perez Zeledon`
+   - **DROPDOWN_OPTION_VALUE** — regional id (optional if label is set)
+   - **CONTENT_SELECTOR** — `.mud-table-container`
+   - **TABLE_FILTER_ESPECIALIDAD_VALUE** — e.g. `Español` or `Español,Inglés`
+   - Optional: `TABLE_FILTER_PUESTO_VALUE`, `TABLE_FILTER_INSTITUCION_VALUE`, `TABLE_FILTER_LECCIONES_VALUE`
+3. Add repository **secrets**:
    - **NTFY_TOPIC** (optional) — ntfy.sh topic for push notifications
-   - **TELEGRAM_BOT_TOKEN** (optional) — From @BotFather
-   - **TELEGRAM_CHAT_ID** (optional) — Your chat ID
+   - **TELEGRAM_BOT_TOKEN** / **TELEGRAM_CHAT_ID** (optional)
+4. Push to GitHub. The workflow runs every 60 minutes (or use **Actions → Vacantes de Profesores - MEP → Run workflow**).
 
-3. Push to GitHub. The workflow runs every 30 minutes.
+`DROPDOWN_CUSTOM` defaults to `1` in the workflow (MudBlazor). The vacancy baseline is restored/saved with Actions cache so change detection works across hourly runs.
+
+GitHub pauses scheduled workflows on public repos after ~60 days without a commit. Run the workflow manually or push a commit to start it again.
 
 ### Getting Telegram credentials
 
@@ -47,45 +63,36 @@ Run locally with `cron` for 30-minute checks:
 
 ### Getting ntfy.sh notifications
 
-1. Pick a unique topic name (e.g. `my-website-monitor`)
-2. Add `NTFY_TOPIC=my-website-monitor` to secrets
-3. Subscribe: open https://ntfy.sh/my-website-monitor or use the ntfy app
+1. Pick a unique topic name (e.g. `vacantes-mep-perez`)
+2. Add `NTFY_TOPIC=vacantes-mep-perez` to secrets (or `.env` locally)
+3. Subscribe: open https://ntfy.sh/vacantes-mep-perez or use the ntfy app
 
 ## Pages that need a dropdown or JavaScript
 
-If the data you want to monitor only appears **after** selecting an option in a dropdown (or after other client-side JavaScript runs), use **Playwright** so the script runs a real browser, selects the dropdown, then captures the resulting content.
+The MEP form only shows vacancies after selecting a regional. Playwright runs a real browser, selects the dropdown, then captures the table.
 
 1. Set `USE_PLAYWRIGHT=1` (or `true`) in your `.env`.
 2. Set dropdown options:
-   - **DROPDOWN_SELECTOR** — CSS selector for the dropdown (e.g. `#regionalSelect`, `select[name=range]`).
+   - **DROPDOWN_SELECTOR** — CSS selector for the dropdown (e.g. `#regionalSelect`).
    - **DROPDOWN_OPTION_VALUE** or **DROPDOWN_OPTION_LABEL** — which option to select (value or visible text).
-   - **DROPDOWN_WAIT_AFTER_MS** — milliseconds to wait after selecting (default: `2000`).
+   - **DROPDOWN_WAIT_AFTER_MS** — milliseconds to wait after selecting (default: `2000`). The script then waits for table rows.
 3. **Custom dropdowns (MudBlazor, etc.):** If the dropdown is not a native `<select>` (e.g. MudBlazor, Material-UI), set **DROPDOWN_CUSTOM=1**. The script will click the dropdown to open it, then click the option by text. Optionally set **DROPDOWN_OPTION_SELECTOR** (default: `.mud-list-item, [role='option'], .mud-select-item`) if your app uses different option elements.
 4. **Debug in visible browser:** Set **HEADLESS=0** to see the browser while the script runs.
 
-Example for a **native `<select>`**:
+Example for the MEP form:
 
 ```bash
-TARGET_URL=https://example.com/dashboard
-USE_PLAYWRIGHT=1
-DROPDOWN_SELECTOR=#dateRange
-DROPDOWN_OPTION_LABEL=Last 7 days
-CONTENT_SELECTOR=.report-content
-```
-
-Example for a **custom dropdown (e.g. MudBlazor)**:
-
-```bash
-TARGET_URL=https://apps.example.com/form
+TARGET_URL=https://apps.mep.go.cr/formulario
 USE_PLAYWRIGHT=1
 DROPDOWN_CUSTOM=1
 DROPDOWN_SELECTOR=#regionalSelect
 DROPDOWN_OPTION_LABEL=Regional Educación Perez Zeledon
-CONTENT_SELECTOR=.mud-table-root
-DROPDOWN_WAIT_AFTER_MS=10000
+CONTENT_SELECTOR=.mud-table-container
+TABLE_FILTER_ESPECIALIDAD_VALUE=Español
+DROPDOWN_WAIT_AFTER_MS=2000
 ```
 
-First run will download the browser (Chromium) if needed. For **GitHub Actions**, add a step to install the browser, e.g. `npx playwright install chromium`.
+First run will download the browser (Chromium) if needed. The GitHub Actions workflow already installs Chromium.
 
 ## Environment Variables
 
@@ -101,17 +108,24 @@ First run will download the browser (Chromium) if needed. For **GitHub Actions**
 | DROPDOWN_OPTION_SELECTOR | No | Selector for option elements when DROPDOWN_CUSTOM=1 (default: .mud-list-item, [role='option']) |
 | DROPDOWN_WAIT_AFTER_MS | No | Ms to wait after selecting dropdown (default: 2000) |
 | HEADLESS | No | Set to `0` or `false` to show browser (default: true) |
-| TABLE_FILTER_DATA_LABEL | No | Keep only rows where `<td data-label="...">` equals TABLE_FILTER_VALUE (e.g. Especialidad) |
-| TABLE_FILTER_VALUE | No | Text that the data-label cell must have (e.g. Español). Use with TABLE_FILTER_DATA_LABEL. |
+| TABLE_CELL_NAMES | No | Comma-separated `data-label` columns to parse (default: Vacante, Especialidad, Clase de Puesto, Institución, Lecciones) |
+| TABLE_FILTER_ESPECIALIDAD | No | Column name for especialidad (default: Especialidad) |
+| TABLE_FILTER_ESPECIALIDAD_VALUE | No | Exact match, comma-separated (e.g. `Español` or `Español,Inglés`) |
+| TABLE_FILTER_PUESTO | No | Column name for puesto (e.g. `Clase de Puesto`) |
+| TABLE_FILTER_PUESTO_VALUE | No | Exact match for puesto; leave empty to skip |
+| TABLE_FILTER_INSTITUCION | No | Column name for institución |
+| TABLE_FILTER_INSTITUCION_VALUE | No | Exact match for institución; leave empty to skip |
+| TABLE_FILTER_LECCIONES | No | Column name for lecciones |
+| TABLE_FILTER_LECCIONES_VALUE | No | Exact match for lecciones; leave empty to skip |
 | NTFY_TOPIC | No | ntfy.sh topic for notifications |
 | TELEGRAM_BOT_TOKEN | No | Telegram bot token |
 | TELEGRAM_CHAT_ID | No | Telegram chat ID |
-| BASELINE_PATH | No | Path to baseline file (default: ./data/baseline.json) |
+| BASELINE_PATH | No | Path to baseline file (default: `./data/baseline.json`) |
 
 ## Manual run
 
 ```bash
-TARGET_URL=https://example.com npm run monitor
+npm run monitor
 ```
 
-Or use **Actions → Website Content Monitor → Run workflow** in GitHub.
+Or use **Actions → Vacantes de Profesores - MEP → Run workflow** in GitHub.

@@ -1,61 +1,78 @@
 #!/usr/bin/env node
-import { writeFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import { setTimeout } from "node:timers/promises";
 import dotenv from "dotenv";
 import * as cheerio from "cheerio";
+import {
+  buildNotification,
+  diffVacancies,
+  filterVacancies,
+  parseCellNames,
+  parseVacancies,
+  specialtyLabel,
+  splitFilterValues,
+  truncateUtf8,
+} from "./vacancies.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: join(__dirname, "..", ".env") });
+dotenv.config({ path: join(__dirname, "..", ".env"), quiet: true });
 
 const TARGET_URL = (process.env.TARGET_URL || "https://example.com").trim();
-const CONTENT_SELECTOR = process.env.CONTENT_SELECTOR || "body";
-const HTML_PATH = join(process.cwd(), "data");
+const CONTENT_SELECTOR = (process.env.CONTENT_SELECTOR || "body").trim();
+const BASELINE_PATH = (
+  process.env.BASELINE_PATH || join(process.cwd(), "data", "baseline.json")
+).trim();
 
 const USE_PLAYWRIGHT =
   process.env.USE_PLAYWRIGHT === "1" || process.env.USE_PLAYWRIGHT === "true";
 const HEADLESS =
-  process.env.HEADLESS !== "0" && process.env.HEADLESS !== "false"; // optional in .env; default true (headless). Set HEADLESS=0 to show browser
+  process.env.HEADLESS !== "0" && process.env.HEADLESS !== "false";
 const DROPDOWN_SELECTOR = (process.env.DROPDOWN_SELECTOR || "").trim();
 const DROPDOWN_OPTION_VALUE = (process.env.DROPDOWN_OPTION_VALUE || "").trim();
 const DROPDOWN_OPTION_LABEL = (process.env.DROPDOWN_OPTION_LABEL || "").trim();
-const DROPDOWN_WAIT_AFTER_MS = Number(
-  process.env.DROPDOWN_WAIT_AFTER_MS || "2000",
-  10,
-);
+const DROPDOWN_WAIT_AFTER_MS = Number(process.env.DROPDOWN_WAIT_AFTER_MS || "2000");
 const DROPDOWN_CUSTOM =
   process.env.DROPDOWN_CUSTOM === "1" || process.env.DROPDOWN_CUSTOM === "true";
 const DROPDOWN_OPTION_SELECTOR =
   (process.env.DROPDOWN_OPTION_SELECTOR || "").trim() ||
   ".mud-list-item, [role='option'], .mud-select-item";
 
-const TABLE_FILTER_DATA_LABEL = (
-  process.env.TABLE_FILTER_DATA_LABEL || ""
+const TABLE_CELL_NAMES = parseCellNames(process.env.TABLE_CELL_NAMES);
+const TABLE_FILTER_ESPECIALIDAD = (
+  process.env.TABLE_FILTER_ESPECIALIDAD || "Especialidad"
 ).trim();
 const TABLE_FILTER_PUESTO = (process.env.TABLE_FILTER_PUESTO || "").trim();
-const TABLE_FILTER_ESPECIALIDAD_VALUE = (
-  process.env.TABLE_FILTER_ESPECIALIDAD_VALUE || ""
-).trim();
-const TABLE_FILTER_ESPECIALIDAD = (
-  process.env.TABLE_FILTER_ESPECIALIDAD || ""
-).trim();
 const TABLE_FILTER_INSTITUCION = (
   process.env.TABLE_FILTER_INSTITUCION || ""
 ).trim();
-const TABLE_FILTER_LECCIONES = (
-  process.env.TABLE_FILTER_LECCIONES || ""
-).trim();
-const TABLE_CELL_NAMES = (process.env.TABLE_CELL_NAMES || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const TABLE_FILTER_LECCIONES = (process.env.TABLE_FILTER_LECCIONES || "").trim();
+
+const COLUMN_FILTERS = [
+  {
+    column: TABLE_FILTER_ESPECIALIDAD,
+    values: splitFilterValues(process.env.TABLE_FILTER_ESPECIALIDAD_VALUE),
+  },
+  {
+    column: TABLE_FILTER_PUESTO,
+    values: splitFilterValues(process.env.TABLE_FILTER_PUESTO_VALUE),
+  },
+  {
+    column: TABLE_FILTER_INSTITUCION,
+    values: splitFilterValues(process.env.TABLE_FILTER_INSTITUCION_VALUE),
+  },
+  {
+    column: TABLE_FILTER_LECCIONES,
+    values: splitFilterValues(process.env.TABLE_FILTER_LECCIONES_VALUE),
+  },
+];
 
 async function fetchPage(url) {
   const res = await fetch(url, {
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (compatible; WebsiteContentMonitor/1.0; +https://github.com)",
+        "Mozilla/5.0 (compatible; VacantesMEP/1.0; +https://github.com/oxcarga/vacantes-mep)",
     },
   });
   if (!res.ok) {
@@ -66,8 +83,9 @@ async function fetchPage(url) {
 
 async function fetchPageWithBrowser(url) {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: HEADLESS });
+  let browser;
   try {
+    browser = await chromium.launch({ headless: HEADLESS });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
@@ -104,24 +122,24 @@ async function fetchPageWithBrowser(url) {
       }
 
       await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-      if (CONTENT_SELECTOR && CONTENT_SELECTOR !== "body") {
-        await page
-          .waitForSelector(CONTENT_SELECTOR, { timeout: 15000 })
-          .catch(() => {});
-      }
+      const tableWaitSelector =
+        CONTENT_SELECTOR && CONTENT_SELECTOR !== "body"
+          ? `${CONTENT_SELECTOR} tbody tr, ${CONTENT_SELECTOR} tr, tbody tr`
+          : "tbody tr";
+      await page.waitForSelector(tableWaitSelector, { timeout: 15000 }).catch(() => {});
     }
 
-    const html = await page.content();
-    return html;
+    return await page.content();
   } catch (error) {
     console.error("Error fetching page with browser:", error);
-    // Notiy the error to the user
     if (error.message.includes("attempting select option action")) {
       return `[ERROR] No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`;
     }
     return `[ERROR] ${error.message}`;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 }
 
@@ -134,38 +152,32 @@ function extractContent(html, selector) {
   return el.html() || $.html();
 }
 
-/**
- * Keeps only table rows where the cell with data-label={dataLabel} has text equal to filterValue (trimmed).
- * Returns the filtered table HTML string.
- */
-function filterTableRowsByCell(html, dataLabel, filterValue) {
-  const arrayRows = [];
-  if (!dataLabel || filterValue === undefined || filterValue === "") {
-    return html;
+export function loadBaseline(path = BASELINE_PATH) {
+  if (!existsSync(path)) return null;
+  try {
+    const data = JSON.parse(readFileSync(path, "utf8"));
+    if (!Array.isArray(data?.vacancies)) return null;
+    return data;
+  } catch (error) {
+    console.warn(`Could not read baseline at ${path}:`, error.message);
+    return null;
   }
-  const $ = cheerio.load(html);
-  const value = String(filterValue).trim();
-  $("tbody tr").each((_, row) => {
-    const $row = $(row);
-    const cell = $row.find(`td[data-label="${dataLabel}"]`).first();
-    const cellText = cell.text().trim();
-    if (cellText !== value) {
-      $row.remove();
-    } else {
-      const cellValues = TABLE_CELL_NAMES.map((name) => {
-        return $row.find(`td[data-label="${name}"]`).text().trim();
-      });
-      arrayRows.push(cellValues);
-    }
-  });
-  // saveHtml(JSON.stringify(arrayRows, null, 2), "vacantes.json");
-  // return JSON.stringify(arrayRows, null, 2);
-  return arrayRows;
 }
 
-// function saveHtml(html, filename) {
-//   writeFileSync(join(HTML_PATH, filename), html);
-// }
+export function saveBaseline(vacancies, path = BASELINE_PATH) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(
+    path,
+    JSON.stringify(
+      {
+        timestamp: new Date().toISOString(),
+        vacancies,
+      },
+      null,
+      2,
+    ),
+  );
+}
 
 async function sendNtfy(message, topic) {
   if (!topic) return;
@@ -190,56 +202,105 @@ async function sendTelegram(message, token, chatId) {
   });
 }
 
-async function notify(title, body) {
-  const message = `${title}\n\n${body}`.trim();
+export async function notify(title, body) {
+  const message = truncateUtf8(`${title}\n\n${body}`.trim());
   const ntfyTopic = process.env.NTFY_TOPIC;
-  // const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  // const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
   const promises = [];
   if (ntfyTopic) {
     promises.push(sendNtfy(message, ntfyTopic));
   }
-  // if (telegramToken && telegramChatId) {
-  //   promises.push(sendTelegram(message, telegramToken, telegramChatId));
-  // }
+  if (telegramToken && telegramChatId) {
+    promises.push(sendTelegram(message, telegramToken, telegramChatId));
+  }
+
+  if (promises.length === 0) {
+    console.log(message);
+    return;
+  }
 
   await Promise.allSettled(promises);
 }
 
-async function run() {
+export async function run() {
   console.log(`[${new Date().toISOString()}] Checking ${TARGET_URL}`);
 
   const html = USE_PLAYWRIGHT
     ? await fetchPageWithBrowser(TARGET_URL)
     : await fetchPage(TARGET_URL);
-  // return error message
-  if (html.includes("[ERROR]")) {
-    return await notify(html, "");
-  }
-  // saveHtml(html, "html.txt");
-  let content = extractContent(html, CONTENT_SELECTOR || undefined);
-  if (TABLE_FILTER_ESPECIALIDAD && TABLE_FILTER_ESPECIALIDAD_VALUE) {
-    content = filterTableRowsByCell(
-      content,
-      TABLE_FILTER_ESPECIALIDAD,
-      TABLE_FILTER_ESPECIALIDAD_VALUE,
-    );
-  }
-  // const vacantes = JSON.parse(content);
-  const lines = content.map((v) => `• ${v.join(" | ")}`);
-  const body =
-    content.length > 0
-      ? lines.join("\n____\n")
-      : "No hay vacantes disponibles con ese filtro.";
 
-  await notify(
-    `Hay ${content.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${DROPDOWN_OPTION_LABEL}`,
-    body,
+  if (typeof html === "string" && html.includes("[ERROR]")) {
+    await notify(html, "");
+    return;
+  }
+
+  const content = extractContent(html, CONTENT_SELECTOR || undefined);
+  const parsed = parseVacancies(content, TABLE_CELL_NAMES);
+  const baseline = loadBaseline();
+
+  if (parsed.length === 0 && baseline?.vacancies?.length) {
+    await notify(
+      "[ERROR] No se encontraron filas en la tabla de vacantes.",
+      "No se actualizó la línea base para no perder las vacantes anteriores.",
+    );
+    return;
+  }
+
+  const current = filterVacancies(parsed, COLUMN_FILTERS);
+  const specialty = specialtyLabel(
+    splitFilterValues(process.env.TABLE_FILTER_ESPECIALIDAD_VALUE),
+  );
+  const regionalLabel = DROPDOWN_OPTION_LABEL || "la regional";
+
+  if (!baseline) {
+    const notification = buildNotification({
+      firstRun: true,
+      current,
+      specialtyLabel: specialty,
+      regionalLabel,
+      cellNames: TABLE_CELL_NAMES,
+    });
+    await notify(notification.title, notification.body);
+    saveBaseline(current);
+    console.log(`Baseline saved with ${current.length} vacancies (first run).`);
+    return;
+  }
+
+  const { added, removed, unchanged } = diffVacancies(
+    baseline.vacancies,
+    current,
+    TABLE_CELL_NAMES,
+  );
+  const notification = buildNotification({
+    current,
+    added,
+    removed,
+    specialtyLabel: specialty,
+    regionalLabel,
+    cellNames: TABLE_CELL_NAMES,
+  });
+
+  if (notification) {
+    await notify(notification.title, notification.body);
+  } else {
+    console.log("No vacancy changes since last run.");
+  }
+
+  saveBaseline(current);
+  console.log(
+    `Baseline updated: ${current.length} current, ${added.length} added, ${removed.length} removed, unchanged=${unchanged}`,
   );
 }
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isMain =
+  Boolean(process.argv[1]) &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+
+if (isMain) {
+  run().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

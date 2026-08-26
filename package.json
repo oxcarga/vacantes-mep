@@ -1,12 +1,12 @@
 {
   "name": "website-content-monitor",
   "version": "1.0.0",
-  "description": "Monitor a website every 30 minutes for new content and get notified",
+  "description": "Notify teachers when MEP vacancy listings change",
   "type": "module",
   "main": "src/monitor.js",
   "scripts": {
     "monitor": "node src/monitor.js",
-    "test": "node src/monitor.js"
+    "test": "node --test src/*.test.js"
   },
   "engines": {
     "node": ">=18.0.0"

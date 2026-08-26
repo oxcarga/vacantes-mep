@@ -1,6 +1,7 @@
-# Playwright image includes Chromium; skip a second download from npm.
+# Playwright image includes Chromium. Default user is root (sandbox off).
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
+USER root
 WORKDIR /app
 ENV NODE_ENV=production \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \

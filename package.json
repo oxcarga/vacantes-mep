@@ -6,7 +6,7 @@
   "main": "src/monitor.js",
   "scripts": {
     "monitor": "node src/monitor.js",
-    "test": "node --test ./test/db.test.js",
+    "test": "node --test ./test/db.test.js ./test/monitor.e2e.test.js",
     "spike:mep": "node scripts/spike-mep-api.js"
   },
   "engines": {

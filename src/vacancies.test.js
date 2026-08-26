@@ -11,6 +11,7 @@ import {
   parseVacancies,
   splitFilterValues,
   truncateUtf8,
+  uniqueVacancies,
   vacancyKey,
 } from "./vacancies.js";
 
@@ -121,6 +122,14 @@ describe("diffVacancies", () => {
       vacancyKey(a, ["Vacante", "Especialidad", "Institución"]),
       vacancyKey(b, ["Vacante", "Especialidad", "Institución"]),
     );
+  });
+});
+
+describe("uniqueVacancies", () => {
+  it("drops duplicate keys", () => {
+    const rows = parseVacancies(FIXTURE_HTML);
+    const deduped = uniqueVacancies([...rows, rows[0]]);
+    assert.equal(deduped.length, rows.length);
   });
 });
 

@@ -54,6 +54,16 @@ export function vacancyKey(vacancy, cellNames = DEFAULT_CELL_NAMES) {
   return cellNames.map((name) => vacancy?.[name] ?? "").join("|");
 }
 
+export function uniqueVacancies(rows, cellNames = DEFAULT_CELL_NAMES) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = vacancyKey(row, cellNames);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function diffVacancies(previous = [], current = [], cellNames = DEFAULT_CELL_NAMES) {
   const previousKeys = new Set(previous.map((row) => vacancyKey(row, cellNames)));
   const currentKeys = new Set(current.map((row) => vacancyKey(row, cellNames)));

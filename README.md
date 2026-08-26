@@ -6,7 +6,7 @@ The hourly GitHub Action scrapes a regional (MudBlazor dropdown), filters the ta
 
 ## Flow
 
-1. **Fetch** — Open the MEP form with Playwright and select the regional
+1. **Fetch** — Open the MEP form with Playwright, select the regional, and collect every table page
 2. **Parse** — Read table rows into vacancy objects
 3. **Filter** — Keep rows matching especialidad (and optional puesto / institución / lecciones)
 4. **Diff** — Compare with `data/baseline.json` from the previous run
@@ -51,7 +51,7 @@ Run locally with `cron` for hourly checks:
    - **TELEGRAM_BOT_TOKEN** / **TELEGRAM_CHAT_ID** (optional)
 4. Push to GitHub. The workflow runs every 60 minutes (or use **Actions → Vacantes de Profesores - MEP → Run workflow**).
 
-`DROPDOWN_CUSTOM` defaults to `1` in the workflow (MudBlazor). The vacancy baseline is restored/saved with Actions cache so change detection works across hourly runs.
+The vacancy baseline is restored/saved with Actions cache so change detection works across hourly runs. `#regionalSelect` is a native `<select>` on the MEP form; only set `DROPDOWN_CUSTOM=1` if you are targeting a custom listbox.
 
 GitHub pauses scheduled workflows on public repos after ~60 days without a commit. Run the workflow manually or push a commit to start it again.
 
@@ -69,7 +69,7 @@ GitHub pauses scheduled workflows on public repos after ~60 days without a commi
 
 ## Pages that need a dropdown or JavaScript
 
-The MEP form only shows vacancies after selecting a regional. Playwright runs a real browser, selects the dropdown, then captures the table.
+The MEP form only shows vacancies after selecting a regional. Playwright runs a real browser, selects the native `<select id="regionalSelect">`, then captures the table. If that regional is not in the dropdown (no current postings), you get a Spanish error notification and the baseline is left unchanged.
 
 1. Set `USE_PLAYWRIGHT=1` (or `true`) in your `.env`.
 2. Set dropdown options:
@@ -84,8 +84,8 @@ Example for the MEP form:
 ```bash
 TARGET_URL=https://apps.mep.go.cr/formulario
 USE_PLAYWRIGHT=1
-DROPDOWN_CUSTOM=1
 DROPDOWN_SELECTOR=#regionalSelect
+DROPDOWN_OPTION_VALUE=53
 DROPDOWN_OPTION_LABEL=Regional Educación Perez Zeledon
 CONTENT_SELECTOR=.mud-table-container
 TABLE_FILTER_ESPECIALIDAD_VALUE=Español

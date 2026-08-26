@@ -14,6 +14,7 @@ import {
   specialtyLabel,
   splitFilterValues,
   truncateUtf8,
+  uniqueVacancies,
 } from "./vacancies.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -103,7 +104,11 @@ async function fetchPageWithBrowser(url) {
         timeout: 10000,
       });
 
-      if (DROPDOWN_CUSTOM) {
+      const isNativeSelect = await page
+        .locator(DROPDOWN_SELECTOR)
+        .evaluate((el) => el.tagName === "SELECT");
+
+      if (DROPDOWN_CUSTOM && !isNativeSelect) {
         await page.locator(DROPDOWN_SELECTOR).click();
         await setTimeout(DROPDOWN_WAIT_AFTER_MS);
         const optionText = optionLabel || optionValue;
@@ -114,11 +119,32 @@ async function fetchPageWithBrowser(url) {
         await optionLocator.waitFor({ state: "visible", timeout: 10000 });
         await optionLocator.click();
       } else {
-        await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-        const option = optionValue
-          ? { value: optionValue }
-          : { label: optionLabel.trim() };
-        await page.selectOption(DROPDOWN_SELECTOR, option);
+        await page
+          .waitForFunction(
+            (sel) => (document.querySelector(sel)?.options?.length ?? 0) > 1,
+            DROPDOWN_SELECTOR,
+            { timeout: 10000 },
+          )
+          .catch(() => {});
+        const available = await page.$$eval(`${DROPDOWN_SELECTOR} option`, (els) =>
+          els.map((el) => ({
+            value: el.value,
+            label: el.textContent.trim(),
+          })),
+        );
+        const match = optionValue
+          ? available.find((opt) => opt.value === optionValue)
+          : available.find(
+              (opt) =>
+                opt.label === optionLabel.trim() ||
+                opt.label.includes(optionLabel.trim()),
+            );
+        if (!match) {
+          throw new Error(
+            `attempting select option action: missing ${optionLabel} : ${optionValue}`,
+          );
+        }
+        await page.selectOption(DROPDOWN_SELECTOR, { value: match.value });
       }
 
       await setTimeout(DROPDOWN_WAIT_AFTER_MS);
@@ -129,7 +155,7 @@ async function fetchPageWithBrowser(url) {
       await page.waitForSelector(tableWaitSelector, { timeout: 15000 }).catch(() => {});
     }
 
-    return await page.content();
+    return await collectPaginatedHtml(page);
   } catch (error) {
     console.error("Error fetching page with browser:", error);
     if (error.message.includes("attempting select option action")) {
@@ -141,6 +167,29 @@ async function fetchPageWithBrowser(url) {
       await browser.close().catch(() => {});
     }
   }
+}
+
+async function collectPaginatedHtml(page) {
+  const htmls = [await page.content()];
+  const next = page.getByRole("button", { name: "Next page" });
+  for (let i = 0; i < 29; i += 1) {
+    if (!(await next.count()) || (await next.isDisabled())) break;
+    const previousFirst = (
+      await page.locator("tbody tr td").first().textContent().catch(() => "")
+    )?.trim();
+    await next.click();
+    await page
+      .waitForFunction(
+        (prev) =>
+          document.querySelector("tbody tr td")?.textContent?.trim() !== prev,
+        previousFirst,
+        { timeout: 10000 },
+      )
+      .catch(() => {});
+    await setTimeout(400);
+    htmls.push(await page.content());
+  }
+  return htmls;
 }
 
 function extractContent(html, selector) {
@@ -227,17 +276,25 @@ export async function notify(title, body) {
 export async function run() {
   console.log(`[${new Date().toISOString()}] Checking ${TARGET_URL}`);
 
-  const html = USE_PLAYWRIGHT
+  const fetched = USE_PLAYWRIGHT
     ? await fetchPageWithBrowser(TARGET_URL)
-    : await fetchPage(TARGET_URL);
+    : [await fetchPage(TARGET_URL)];
 
-  if (typeof html === "string" && html.includes("[ERROR]")) {
-    await notify(html, "");
+  if (typeof fetched === "string" && fetched.startsWith("[ERROR]")) {
+    await notify(fetched, "");
     return;
   }
 
-  const content = extractContent(html, CONTENT_SELECTOR || undefined);
-  const parsed = parseVacancies(content, TABLE_CELL_NAMES);
+  const htmls = Array.isArray(fetched) ? fetched : [fetched];
+  const parsed = uniqueVacancies(
+    htmls.flatMap((html) =>
+      parseVacancies(
+        extractContent(html, CONTENT_SELECTOR || undefined),
+        TABLE_CELL_NAMES,
+      ),
+    ),
+    TABLE_CELL_NAMES,
+  );
   const baseline = loadBaseline();
 
   if (parsed.length === 0 && baseline?.vacancies?.length) {

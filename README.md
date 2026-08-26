@@ -2,7 +2,7 @@
 
 Monitor the [MEP vacancy form](https://apps.mep.go.cr/formulario) and get a phone notification when postings appear or disappear. Notifications go to [ntfy.sh](https://ntfy.sh) and/or Telegram.
 
-The hourly GitHub Action scrapes a regional (MudBlazor dropdown), filters the table (for example Español in Pérez Zeledón), compares against the last run, and notifies **only when the vacancy set changes**.
+The hourly GitHub Action scrapes a regional from the MEP form, filters the table (for example Español in Pérez Zeledón), compares against the last run, and notifies **only when the vacancy set changes**.
 
 ## Flow
 

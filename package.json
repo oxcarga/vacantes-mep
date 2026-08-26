@@ -1,12 +1,12 @@
 {
-  "name": "website-content-monitor",
-  "version": "1.0.0",
-  "description": "Monitor a website every 30 minutes for new content and get notified",
+  "name": "vacantes-mep",
+  "version": "1.1.0",
+  "description": "Notifica vacantes de profesores del MEP (Pérez Zeledón / Español) por ntfy.sh o Telegram",
   "type": "module",
   "main": "src/monitor.js",
   "scripts": {
     "monitor": "node src/monitor.js",
-    "test": "node src/monitor.js"
+    "test": "node --test test/vacancies.test.js"
   },
   "engines": {
     "node": ">=18.0.0"

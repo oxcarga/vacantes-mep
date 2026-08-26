@@ -1,61 +1,84 @@
 #!/usr/bin/env node
-import { writeFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
 import dotenv from "dotenv";
-import * as cheerio from "cheerio";
+import {
+  buildNotification,
+  DEFAULT_CELL_NAMES,
+  diffVacancies,
+  loadBaseline,
+  parseVacancies,
+  saveBaseline,
+} from "./vacancies.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "..", ".env") });
 
-const TARGET_URL = (process.env.TARGET_URL || "https://example.com").trim();
-const CONTENT_SELECTOR = process.env.CONTENT_SELECTOR || "body";
-const HTML_PATH = join(process.cwd(), "data");
+function envFlag(value, defaultValue) {
+  if (value === undefined || String(value).trim() === "") {
+    return defaultValue;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes"].includes(normalized)) return true;
+  if (["0", "false", "no"].includes(normalized)) return false;
+  return defaultValue;
+}
 
-const USE_PLAYWRIGHT =
-  process.env.USE_PLAYWRIGHT === "1" || process.env.USE_PLAYWRIGHT === "true";
-const HEADLESS =
-  process.env.HEADLESS !== "0" && process.env.HEADLESS !== "false"; // optional in .env; default true (headless). Set HEADLESS=0 to show browser
-const DROPDOWN_SELECTOR = (process.env.DROPDOWN_SELECTOR || "").trim();
-const DROPDOWN_OPTION_VALUE = (process.env.DROPDOWN_OPTION_VALUE || "").trim();
-const DROPDOWN_OPTION_LABEL = (process.env.DROPDOWN_OPTION_LABEL || "").trim();
-const DROPDOWN_WAIT_AFTER_MS = Number(
-  process.env.DROPDOWN_WAIT_AFTER_MS || "2000",
-  10,
+function envText(value, fallback = "") {
+  const text = (value ?? fallback).toString().trim();
+  return text || fallback;
+}
+
+const TARGET_URL = envText(
+  process.env.TARGET_URL,
+  "https://apps.mep.go.cr/formulario",
 );
-const DROPDOWN_CUSTOM =
-  process.env.DROPDOWN_CUSTOM === "1" || process.env.DROPDOWN_CUSTOM === "true";
+const CONTENT_SELECTOR = envText(
+  process.env.CONTENT_SELECTOR,
+  ".mud-table-container",
+);
+const USE_PLAYWRIGHT = envFlag(process.env.USE_PLAYWRIGHT, true);
+const HEADLESS = envFlag(process.env.HEADLESS, true);
+const DROPDOWN_SELECTOR = envText(process.env.DROPDOWN_SELECTOR, "#regionalSelect");
+const DROPDOWN_OPTION_VALUE = envText(process.env.DROPDOWN_OPTION_VALUE, "53");
+const DROPDOWN_OPTION_LABEL = envText(
+  process.env.DROPDOWN_OPTION_LABEL,
+  "Regional Educación Perez Zeledon",
+);
+const DROPDOWN_WAIT_AFTER_MS = (() => {
+  const parsed = Number.parseInt(process.env.DROPDOWN_WAIT_AFTER_MS || "2000", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2000;
+})();
+const DROPDOWN_CUSTOM = envFlag(process.env.DROPDOWN_CUSTOM, true);
 const DROPDOWN_OPTION_SELECTOR =
-  (process.env.DROPDOWN_OPTION_SELECTOR || "").trim() ||
+  envText(process.env.DROPDOWN_OPTION_SELECTOR) ||
   ".mud-list-item, [role='option'], .mud-select-item";
-
-const TABLE_FILTER_DATA_LABEL = (
-  process.env.TABLE_FILTER_DATA_LABEL || ""
-).trim();
-const TABLE_FILTER_PUESTO = (process.env.TABLE_FILTER_PUESTO || "").trim();
-const TABLE_FILTER_ESPECIALIDAD_VALUE = (
-  process.env.TABLE_FILTER_ESPECIALIDAD_VALUE || ""
-).trim();
-const TABLE_FILTER_ESPECIALIDAD = (
-  process.env.TABLE_FILTER_ESPECIALIDAD || ""
-).trim();
-const TABLE_FILTER_INSTITUCION = (
-  process.env.TABLE_FILTER_INSTITUCION || ""
-).trim();
-const TABLE_FILTER_LECCIONES = (
-  process.env.TABLE_FILTER_LECCIONES || ""
-).trim();
-const TABLE_CELL_NAMES = (process.env.TABLE_CELL_NAMES || "")
+const TABLE_FILTER_ESPECIALIDAD = envText(
+  process.env.TABLE_FILTER_ESPECIALIDAD,
+  "Especialidad",
+);
+const TABLE_FILTER_ESPECIALIDAD_VALUE = envText(
+  process.env.TABLE_FILTER_ESPECIALIDAD_VALUE,
+  "Español",
+);
+const TABLE_CELL_NAMES = envText(
+  process.env.TABLE_CELL_NAMES,
+  DEFAULT_CELL_NAMES.join(","),
+)
   .split(",")
-  .map((s) => s.trim())
+  .map((name) => name.trim())
   .filter(Boolean);
+const BASELINE_PATH = resolve(
+  process.cwd(),
+  envText(process.env.BASELINE_PATH, "data/baseline.json"),
+);
 
 async function fetchPage(url) {
   const res = await fetch(url, {
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (compatible; WebsiteContentMonitor/1.0; +https://github.com)",
+        "Mozilla/5.0 (compatible; VacantesMEP/1.0; +https://github.com/oxcarga/vacantes-mep)",
     },
   });
   if (!res.ok) {
@@ -64,17 +87,33 @@ async function fetchPage(url) {
   return res.text();
 }
 
+async function waitForTable(page) {
+  if (CONTENT_SELECTOR && CONTENT_SELECTOR !== "body") {
+    await page.waitForSelector(CONTENT_SELECTOR, { timeout: 15000 });
+  }
+  const rowSelector =
+    CONTENT_SELECTOR && CONTENT_SELECTOR !== "body"
+      ? `${CONTENT_SELECTOR} tbody tr`
+      : "tbody tr";
+  try {
+    await page.waitForSelector(rowSelector, { timeout: 15000 });
+  } catch {
+    console.warn(
+      "No aparecieron filas en la tabla después de esperar; se continúa con el HTML actual.",
+    );
+  }
+}
+
 async function fetchPageWithBrowser(url) {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: HEADLESS });
+  let browser;
   try {
+    browser = await chromium.launch({ headless: HEADLESS });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     if (DROPDOWN_SELECTOR) {
-      const optionLabel = DROPDOWN_OPTION_LABEL;
-      const optionValue = DROPDOWN_OPTION_VALUE;
-      if (!optionLabel && !optionValue) {
+      if (!DROPDOWN_OPTION_LABEL && !DROPDOWN_OPTION_VALUE) {
         throw new Error(
           "Set DROPDOWN_OPTION_VALUE or DROPDOWN_OPTION_LABEL when using DROPDOWN_SELECTOR",
         );
@@ -88,7 +127,7 @@ async function fetchPageWithBrowser(url) {
       if (DROPDOWN_CUSTOM) {
         await page.locator(DROPDOWN_SELECTOR).click();
         await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-        const optionText = optionLabel || optionValue;
+        const optionText = DROPDOWN_OPTION_LABEL || DROPDOWN_OPTION_VALUE;
         const optionLocator = page
           .locator(DROPDOWN_OPTION_SELECTOR)
           .filter({ hasText: optionText.trim() })
@@ -97,89 +136,51 @@ async function fetchPageWithBrowser(url) {
         await optionLocator.click();
       } else {
         await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-        const option = optionValue
-          ? { value: optionValue }
-          : { label: optionLabel.trim() };
-        await page.selectOption(DROPDOWN_SELECTOR, option);
+        const option = DROPDOWN_OPTION_VALUE
+          ? { value: DROPDOWN_OPTION_VALUE }
+          : { label: DROPDOWN_OPTION_LABEL.trim() };
+        try {
+          await page.selectOption(DROPDOWN_SELECTOR, option);
+        } catch (error) {
+          if (error.message.includes("attempting select option action")) {
+            throw new Error(
+              `No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`,
+            );
+          }
+          throw error;
+        }
       }
 
       await setTimeout(DROPDOWN_WAIT_AFTER_MS);
-      if (CONTENT_SELECTOR && CONTENT_SELECTOR !== "body") {
-        await page
-          .waitForSelector(CONTENT_SELECTOR, { timeout: 15000 })
-          .catch(() => {});
-      }
+      await waitForTable(page);
+    } else if (CONTENT_SELECTOR && CONTENT_SELECTOR !== "body") {
+      await waitForTable(page);
     }
 
-    const html = await page.content();
-    return html;
-  } catch (error) {
-    console.error("Error fetching page with browser:", error);
-    // Notiy the error to the user
-    if (error.message.includes("attempting select option action")) {
-      return `[ERROR] No existe la opción "${DROPDOWN_OPTION_LABEL} : ${DROPDOWN_OPTION_VALUE}" en el dropdown.`;
-    }
-    return `[ERROR] ${error.message}`;
+    return await page.content();
   } finally {
-    await browser.close();
-  }
-}
-
-function extractContent(html, selector) {
-  const $ = cheerio.load(html);
-  const el = selector ? $(selector).first() : $("body").first();
-  if (!el.length) {
-    return $.html();
-  }
-  return el.html() || $.html();
-}
-
-/**
- * Keeps only table rows where the cell with data-label={dataLabel} has text equal to filterValue (trimmed).
- * Returns the filtered table HTML string.
- */
-function filterTableRowsByCell(html, dataLabel, filterValue) {
-  const arrayRows = [];
-  if (!dataLabel || filterValue === undefined || filterValue === "") {
-    return html;
-  }
-  const $ = cheerio.load(html);
-  const value = String(filterValue).trim();
-  $("tbody tr").each((_, row) => {
-    const $row = $(row);
-    const cell = $row.find(`td[data-label="${dataLabel}"]`).first();
-    const cellText = cell.text().trim();
-    if (cellText !== value) {
-      $row.remove();
-    } else {
-      const cellValues = TABLE_CELL_NAMES.map((name) => {
-        return $row.find(`td[data-label="${name}"]`).text().trim();
-      });
-      arrayRows.push(cellValues);
+    if (browser) {
+      await browser.close();
     }
-  });
-  // saveHtml(JSON.stringify(arrayRows, null, 2), "vacantes.json");
-  // return JSON.stringify(arrayRows, null, 2);
-  return arrayRows;
+  }
 }
-
-// function saveHtml(html, filename) {
-//   writeFileSync(join(HTML_PATH, filename), html);
-// }
 
 async function sendNtfy(message, topic) {
   if (!topic) return;
-  await fetch(`https://ntfy.sh/${topic}`, {
+  const res = await fetch(`https://ntfy.sh/${topic}`, {
     method: "POST",
     body: message,
-    headers: { "Content-Type": "text/plain" },
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
+  if (!res.ok) {
+    throw new Error(`ntfy.sh HTTP ${res.status}: ${res.statusText}`);
+  }
 }
 
 async function sendTelegram(message, token, chatId) {
   if (!token || !chatId) return;
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -188,58 +189,95 @@ async function sendTelegram(message, token, chatId) {
       disable_web_page_preview: true,
     }),
   });
+  if (!res.ok) {
+    throw new Error(`Telegram HTTP ${res.status}: ${res.statusText}`);
+  }
 }
 
 async function notify(title, body) {
   const message = `${title}\n\n${body}`.trim();
   const ntfyTopic = process.env.NTFY_TOPIC;
-  // const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  // const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
   const promises = [];
   if (ntfyTopic) {
     promises.push(sendNtfy(message, ntfyTopic));
   }
-  // if (telegramToken && telegramChatId) {
-  //   promises.push(sendTelegram(message, telegramToken, telegramChatId));
-  // }
+  if (telegramToken && telegramChatId) {
+    promises.push(sendTelegram(message, telegramToken, telegramChatId));
+  }
+  if (promises.length === 0) {
+    console.log("No notification channel configured; message was:\n", message);
+    return;
+  }
 
-  await Promise.allSettled(promises);
+  const results = await Promise.allSettled(promises);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    for (const result of failed) {
+      console.error("Notification failed:", result.reason);
+    }
+    throw failed[0].reason;
+  }
 }
 
 async function run() {
   console.log(`[${new Date().toISOString()}] Checking ${TARGET_URL}`);
 
-  const html = USE_PLAYWRIGHT
-    ? await fetchPageWithBrowser(TARGET_URL)
-    : await fetchPage(TARGET_URL);
-  // return error message
-  if (html.includes("[ERROR]")) {
-    return await notify(html, "");
-  }
-  // saveHtml(html, "html.txt");
-  let content = extractContent(html, CONTENT_SELECTOR || undefined);
-  if (TABLE_FILTER_ESPECIALIDAD && TABLE_FILTER_ESPECIALIDAD_VALUE) {
-    content = filterTableRowsByCell(
-      content,
-      TABLE_FILTER_ESPECIALIDAD,
-      TABLE_FILTER_ESPECIALIDAD_VALUE,
-    );
-  }
-  // const vacantes = JSON.parse(content);
-  const lines = content.map((v) => `• ${v.join(" | ")}`);
-  const body =
-    content.length > 0
-      ? lines.join("\n____\n")
-      : "No hay vacantes disponibles con ese filtro.";
+  try {
+    const html = USE_PLAYWRIGHT
+      ? await fetchPageWithBrowser(TARGET_URL)
+      : await fetchPage(TARGET_URL);
 
-  await notify(
-    `Hay ${content.length} vacantes de ${TABLE_FILTER_ESPECIALIDAD_VALUE} disponibles en la ${DROPDOWN_OPTION_LABEL}`,
-    body,
-  );
+    const vacancies = parseVacancies(html, {
+      contentSelector: CONTENT_SELECTOR,
+      cellNames: TABLE_CELL_NAMES,
+      filterLabel: TABLE_FILTER_ESPECIALIDAD,
+      filterValue: TABLE_FILTER_ESPECIALIDAD_VALUE,
+    });
+
+    const baseline = loadBaseline(BASELINE_PATH);
+    const previous = baseline?.vacancies ?? null;
+    const isFirstRun = previous === null;
+    const { added, removed } = isFirstRun
+      ? { added: vacancies, removed: [] }
+      : diffVacancies(previous, vacancies, TABLE_CELL_NAMES);
+
+    console.log(
+      `Found ${vacancies.length} matching vacancies (${added.length} new, ${removed.length} gone).`,
+    );
+
+    const notification = buildNotification({
+      current: vacancies,
+      added,
+      removed,
+      isFirstRun,
+      especialidad: TABLE_FILTER_ESPECIALIDAD_VALUE,
+      regional: DROPDOWN_OPTION_LABEL,
+      cellNames: TABLE_CELL_NAMES,
+    });
+
+    if (notification.shouldNotify) {
+      await notify(notification.title, notification.body);
+    } else {
+      console.log("No vacancy changes since last run.");
+    }
+
+    saveBaseline(BASELINE_PATH, vacancies);
+    console.log(`Baseline saved to ${BASELINE_PATH}`);
+  } catch (error) {
+    console.error(error);
+    try {
+      await notify(
+        "Error al consultar vacantes MEP",
+        error.message || String(error),
+      );
+    } catch (notifyError) {
+      console.error("Failed to send error notification:", notifyError);
+    }
+    process.exitCode = 1;
+  }
 }
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+run();

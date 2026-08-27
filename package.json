@@ -1,17 +1,19 @@
 {
-  "name": "website-content-monitor",
-  "version": "1.0.0",
-  "description": "Monitor a website every 30 minutes for new content and get notified",
+  "name": "vacantes-mep",
+  "version": "2.0.0",
+  "description": "Vigila las vacantes de profesores del MEP y avisa por ntfy.sh o Telegram sólo cuando cambian",
   "type": "module",
   "main": "src/monitor.js",
   "scripts": {
     "monitor": "node src/monitor.js",
-    "test": "node src/monitor.js"
+    "test": "node --test",
+    "spike:mep": "node scripts/spike-mep-api.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "cheerio": "^1.0.0",
     "dotenv": "^17.3.1",
     "playwright": "^1.58.2"

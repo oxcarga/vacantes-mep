@@ -5,6 +5,11 @@ const USER_AGENT =
 
 const NEXT_PAGE_LABEL = /next page|página siguiente|siguiente/i;
 
+/** Retrying will not fix a wrong regional or a missing setting. */
+export class ConfigurationError extends Error {
+  name = "ConfigurationError";
+}
+
 export function findDropdownOption(available, { value = "", label = "" } = {}) {
   const wantedValue = String(value || "").trim();
   const wantedLabel = String(label || "").trim().toLowerCase();
@@ -117,7 +122,7 @@ async function selectRegional(page, config) {
   } = config;
 
   if (!dropdownOptionLabel && !dropdownOptionValue) {
-    throw new Error(
+    throw new ConfigurationError(
       "Configure DROPDOWN_OPTION_VALUE o DROPDOWN_OPTION_LABEL para usar DROPDOWN_SELECTOR",
     );
   }
@@ -139,6 +144,8 @@ async function selectRegional(page, config) {
     .locator(dropdownSelector)
     .evaluate((element) => element.tagName);
 
+  let resolvedLabel = dropdownOptionLabel;
+
   if (dropdownCustom && tagName !== "SELECT") {
     await page.locator(dropdownSelector).click();
     await delay(dropdownWaitAfterMs);
@@ -150,7 +157,7 @@ async function selectRegional(page, config) {
     try {
       await option.waitFor({ state: "visible", timeout: 10000 });
     } catch {
-      throw new Error(
+      throw new ConfigurationError(
         formatMissingDropdownOption(
           { value: dropdownOptionValue, label: dropdownOptionLabel },
           [],
@@ -173,7 +180,7 @@ async function selectRegional(page, config) {
       label: dropdownOptionLabel,
     });
     if (!match) {
-      throw new Error(
+      throw new ConfigurationError(
         formatMissingDropdownOption(
           { value: dropdownOptionValue, label: dropdownOptionLabel },
           available,
@@ -181,26 +188,33 @@ async function selectRegional(page, config) {
       );
     }
     await page.selectOption(dropdownSelector, { value: match.value });
+    resolvedLabel = match.label || resolvedLabel;
   }
 
   await delay(dropdownWaitAfterMs);
   await waitForVacancyRows(page, config, placeholderBefore);
+  return resolvedLabel;
 }
 
 /**
  * The results table is paginated, so a single page.content() would only ever
  * see the first page of vacancies. Walk the pager and collect every page.
  */
-async function collectPages(page, maxPages) {
+async function collectPages(page, config) {
+  const { contentSelector, maxPages } = config;
+  const scope =
+    contentSelector && contentSelector !== "body" ? `${contentSelector} ` : "";
+  const firstCell = `${scope}tbody tr td`;
+
   const pages = [await page.content()];
   const next = page.getByRole("button", { name: NEXT_PAGE_LABEL });
 
   for (let visited = 1; visited < maxPages; visited += 1) {
     if ((await next.count()) === 0 || (await next.first().isDisabled())) break;
 
-    const firstCellBefore = (
+    const before = (
       await page
-        .locator("tbody tr td")
+        .locator(firstCell)
         .first()
         .textContent()
         .catch(() => "")
@@ -209,10 +223,9 @@ async function collectPages(page, maxPages) {
     await next.first().click();
     await page
       .waitForFunction(
-        (previous) =>
-          document.querySelector("tbody tr td")?.textContent?.trim() !==
-          previous,
-        firstCellBefore,
+        ({ selector, previous }) =>
+          document.querySelector(selector)?.textContent?.trim() !== previous,
+        { selector: firstCell, previous: before },
         { timeout: 10000 },
       )
       .catch(() => {});
@@ -234,38 +247,55 @@ export async function fetchPagesWithBrowser(url, config) {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
+    let regionalLabel = "";
     if (config.dropdownSelector) {
-      await selectRegional(page, config);
+      regionalLabel = await selectRegional(page, config);
     } else {
       await waitForVacancyRows(page, config);
     }
 
-    return await collectPages(page, config.maxPages);
+    return { pages: await collectPages(page, config), regionalLabel };
   } finally {
     if (browser) await browser.close().catch(() => {});
   }
 }
 
 /**
- * Returns every HTML page that may contain vacancy rows.
- *
  * The MEP site is often slow enough to time out. Retrying beats notifying on a
- * hiccup, since a failed run means no vacancy check for another hour.
+ * hiccup, since a failed run means no vacancy check for another hour. A
+ * misconfiguration, on the other hand, will fail just as hard next time.
  */
-export async function fetchVacancyPages(config) {
-  const attempts = config.scrapeAttempts;
+export async function withRetries({ attempts, delayMs }, task) {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return config.usePlaywright
-        ? await fetchPagesWithBrowser(config.targetUrl, config)
-        : [await fetchPage(config.targetUrl)];
+      return await task();
     } catch (error) {
-      if (attempt >= attempts) throw error;
-      const backoff = config.scrapeRetryDelayMs * attempt;
+      if (error instanceof ConfigurationError || attempt >= attempts) {
+        throw error;
+      }
+      const backoff = delayMs * attempt;
       console.warn(
         `Intento ${attempt} de ${attempts} falló (${error.message}). Reintentando en ${backoff} ms.`,
       );
       await delay(backoff);
     }
   }
+}
+
+/**
+ * Returns every HTML page that may contain vacancy rows, plus the name the
+ * form gave the selected regional, which reads better in a notification than
+ * the numeric value when that is all the configuration supplies.
+ */
+export async function fetchVacancyPages(config) {
+  return withRetries(
+    { attempts: config.scrapeAttempts, delayMs: config.scrapeRetryDelayMs },
+    () =>
+      config.usePlaywright
+        ? fetchPagesWithBrowser(config.targetUrl, config)
+        : fetchPage(config.targetUrl).then((html) => ({
+            pages: [html],
+            regionalLabel: "",
+          })),
+  );
 }

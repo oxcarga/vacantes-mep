@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import {
+  ConfigurationError,
   fetchVacancyPages,
   findDropdownOption,
   formatMissingDropdownOption,
+  withRetries,
 } from "../src/scrape.js";
 
 const available = [
@@ -96,7 +98,7 @@ describe("fetchVacancyPages retries", () => {
   it("rides out a transient failure from the site", async () => {
     failuresLeft = 2;
     requests = 0;
-    const pages = await fetchVacancyPages(config);
+    const { pages } = await fetchVacancyPages(config);
     assert.equal(pages.length, 1);
     assert.equal(requests, 3);
   });
@@ -116,5 +118,34 @@ describe("fetchVacancyPages retries", () => {
       /HTTP 503/,
     );
     assert.equal(requests, 1);
+  });
+
+});
+
+describe("withRetries", () => {
+  const policy = { attempts: 3, delayMs: 1 };
+
+  it("does not retry a misconfiguration, which would fail the same way", async () => {
+    let calls = 0;
+    await assert.rejects(
+      withRetries(policy, async () => {
+        calls += 1;
+        throw new ConfigurationError(
+          "No existe la opción \"Cartago\" en el dropdown",
+        );
+      }),
+      /No existe la opción/,
+    );
+    assert.equal(calls, 1);
+  });
+
+  it("returns the first successful result", async () => {
+    let calls = 0;
+    const result = await withRetries(policy, async () => {
+      calls += 1;
+      return "listo";
+    });
+    assert.equal(result, "listo");
+    assert.equal(calls, 1);
   });
 });

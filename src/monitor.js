@@ -23,7 +23,7 @@ export async function runMonitor(config = loadConfig()) {
   let notified = false;
 
   try {
-    const pages = await fetchVacancyPages(config);
+    const { pages, regionalLabel } = await fetchVacancyPages(config);
     const parsed = uniqueVacancies(
       pages.flatMap((html) =>
         parseVacancies(html, {
@@ -69,7 +69,9 @@ export async function runMonitor(config = loadConfig()) {
       removed: diff.removed,
       changed: diff.changed,
       specialty: specialtyLabel(config.especialidades),
-      regional: config.regional,
+      // The stored state stays keyed on config.regional; this is only the name
+      // the reader sees.
+      regional: regionalLabel || config.regional,
       cellNames: config.cellNames,
       identityCellNames: config.identityCellNames,
     });

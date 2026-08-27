@@ -112,8 +112,10 @@ base sólo agrega el histórico.
   consulta rota, no que se hayan cerrado todas las vacantes a la vez; guardarla
   haría que la siguiente consulta reportara todo como nuevo. Si su regional sí
   puede quedarse sin vacantes, ponga `ALLOW_EMPTY_TABLE=1`.
-- **Error** — manda el mensaje de error. Si falla la opción de la regional, la
-  notificación incluye la lista de regionales que el formulario sí ofrecía.
+- **Error** — manda el mensaje de error, pero sólo después de reintentar
+  `SCRAPE_ATTEMPTS` veces: el sitio del MEP se cae a ratos y no vale la pena
+  avisar por un tropiezo. Si falla la opción de la regional, la notificación
+  incluye la lista de regionales que el formulario sí ofrecía.
 
 Una vacante se identifica por las columnas de `TABLE_IDENTITY_CELL_NAMES`
 (`Vacante`, `Especialidad`, `Institución`). Si cambia cualquier otra columna
@@ -139,6 +141,8 @@ apuntan al formulario del MEP.
 | `DROPDOWN_OPTION_SELECTOR` | `.mud-list-item, [role='option'], …` | Opciones de un combo no nativo |
 | `DROPDOWN_WAIT_AFTER_MS` | `2000` | Espera tras escoger la regional |
 | `MAX_PAGES` | `30` | Máximo de páginas del paginador a recorrer |
+| `SCRAPE_ATTEMPTS` | `3` | Intentos antes de dar la consulta por fallida |
+| `SCRAPE_RETRY_DELAY_MS` | `5000` | Espera entre intentos (crece en cada uno) |
 | `TABLE_CELL_NAMES` | `Vacante,Especialidad,Clase de Puesto,Institución,Lecciones` | Columnas (`data-label`) que se leen |
 | `TABLE_IDENTITY_CELL_NAMES` | `Vacante,Especialidad,Institución` | Columnas que identifican una vacante |
 | `TABLE_FILTER_ESPECIALIDAD` | `Especialidad` | Columna a filtrar |

@@ -108,6 +108,7 @@ for (const kind of ["json", "libsql"]) {
           "Vacante,Especialidad,Clase de Puesto,Institución,Lecciones",
         TABLE_FILTER_ESPECIALIDAD_VALUE: "Español",
         DROPDOWN_OPTION_LABEL: "Regional Educación Perez Zeledon",
+        SCRAPE_ATTEMPTS: "1",
         BASELINE_PATH: join(dir, "baseline.json"),
         DATABASE_URL:
           kind === "libsql" ? `file:${join(dir, "vacantes.db")}` : "",

@@ -41,18 +41,51 @@ export async function fetchPage(url) {
   return res.text();
 }
 
-async function waitForTable(page, config) {
-  const { contentSelector } = config;
-  const scoped = contentSelector && contentSelector !== "body";
-  if (scoped) {
+/** Text of the row a table shows in place of results, if any. */
+function readPlaceholder(selector) {
+  const scope =
+    selector && selector !== "body"
+      ? document.querySelector(selector)
+      : document.body;
+  return (
+    scope
+      ?.querySelector("tbody .mud-table-empty-row, tbody tr th[colspan]")
+      ?.textContent?.trim() ?? null
+  );
+}
+
+async function waitForTableContainer(page, contentSelector) {
+  if (contentSelector && contentSelector !== "body") {
     await page.waitForSelector(contentSelector, { timeout: 15000 });
   }
-  const rowSelector = scoped ? `${contentSelector} tbody tr` : "tbody tr";
+}
+
+/**
+ * Waits for the table to answer the regional that was just picked. Waiting for
+ * "tbody tr" is not enough: an empty MudBlazor table still renders one row, so
+ * the placeholder asking you to choose a regional matches straight away and the
+ * page would be captured before its data arrives — reporting no vacancies and,
+ * worse, every previously seen vacancy as closed. Only cells count as data.
+ */
+async function waitForVacancyRows(page, config, placeholderBefore = null) {
+  const { contentSelector } = config;
+  await waitForTableContainer(page, contentSelector);
+
+  const scope =
+    contentSelector && contentSelector !== "body" ? `${contentSelector} ` : "";
   try {
-    await page.waitForSelector(rowSelector, { timeout: 15000 });
+    await page.waitForSelector(`${scope}tbody tr td[data-label]`, {
+      timeout: 15000,
+    });
   } catch {
+    const placeholder = await page.evaluate(readPlaceholder, contentSelector);
+    if (placeholder && placeholder === placeholderBefore) {
+      throw new Error(
+        `La tabla no reaccionó al escoger la regional y sigue mostrando "${placeholder}". Suba DROPDOWN_WAIT_AFTER_MS si la página tarda en conectarse.`,
+      );
+    }
     console.warn(
-      "No aparecieron filas en la tabla; se continúa con el HTML actual.",
+      `La tabla no muestra vacantes${placeholder ? `: "${placeholder}"` : ""}.`,
     );
   }
 }
@@ -93,6 +126,14 @@ async function selectRegional(page, config) {
     state: "visible",
     timeout: 15000,
   });
+
+  // Remembered so the wait below can tell "the table never reacted" apart from
+  // "the table reacted and this regional has no vacancies".
+  await waitForTableContainer(page, config.contentSelector);
+  const placeholderBefore = await page.evaluate(
+    readPlaceholder,
+    config.contentSelector,
+  );
 
   const tagName = await page
     .locator(dropdownSelector)
@@ -143,7 +184,7 @@ async function selectRegional(page, config) {
   }
 
   await delay(dropdownWaitAfterMs);
-  await waitForTable(page, config);
+  await waitForVacancyRows(page, config, placeholderBefore);
 }
 
 /**
@@ -196,7 +237,7 @@ export async function fetchPagesWithBrowser(url, config) {
     if (config.dropdownSelector) {
       await selectRegional(page, config);
     } else {
-      await waitForTable(page, config);
+      await waitForVacancyRows(page, config);
     }
 
     return await collectPages(page, config.maxPages);
@@ -205,10 +246,26 @@ export async function fetchPagesWithBrowser(url, config) {
   }
 }
 
-/** Returns every HTML page that may contain vacancy rows. */
+/**
+ * Returns every HTML page that may contain vacancy rows.
+ *
+ * The MEP site is often slow enough to time out. Retrying beats notifying on a
+ * hiccup, since a failed run means no vacancy check for another hour.
+ */
 export async function fetchVacancyPages(config) {
-  if (config.usePlaywright) {
-    return fetchPagesWithBrowser(config.targetUrl, config);
+  const attempts = config.scrapeAttempts;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return config.usePlaywright
+        ? await fetchPagesWithBrowser(config.targetUrl, config)
+        : [await fetchPage(config.targetUrl)];
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      const backoff = config.scrapeRetryDelayMs * attempt;
+      console.warn(
+        `Intento ${attempt} de ${attempts} falló (${error.message}). Reintentando en ${backoff} ms.`,
+      );
+      await delay(backoff);
+    }
   }
-  return [await fetchPage(config.targetUrl)];
 }

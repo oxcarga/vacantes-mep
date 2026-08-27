@@ -104,6 +104,8 @@ export function loadConfig(env = process.env) {
       ".mud-list-item, [role='option'], .mud-select-item",
     ),
     maxPages: envInt(env.MAX_PAGES, 30, { min: 1 }),
+    scrapeAttempts: envInt(env.SCRAPE_ATTEMPTS, 3, { min: 1 }),
+    scrapeRetryDelayMs: envInt(env.SCRAPE_RETRY_DELAY_MS, 5000),
 
     cellNames,
     identityCellNames:

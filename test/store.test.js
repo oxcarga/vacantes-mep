@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { DEFAULT_IDENTITY_CELL_NAMES } from "../src/config.js";
-import { createStore } from "../src/store.js";
-import { diffVacancies } from "../src/vacancies.js";
+import { createStore } from "../src/store/index.js";
+import { diffVacancies } from "../src/vacancies/index.js";
 
 const REGIONAL = "Regional Educación Perez Zeledon";
 

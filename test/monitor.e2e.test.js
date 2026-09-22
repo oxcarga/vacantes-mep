@@ -9,7 +9,7 @@ import { after, before, describe, it } from "node:test";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const MONITOR = join(ROOT, "src", "monitor.js");
+const MONITOR = join(ROOT, "src", "main.js");
 
 function row({ vacante, especialidad, puesto, institucion, lecciones }) {
   return `<tr>

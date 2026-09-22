@@ -7,7 +7,7 @@ import {
   findDropdownOption,
   formatMissingDropdownOption,
   withRetries,
-} from "../src/scrape.js";
+} from "../src/scrape/index.js";
 
 const available = [
   { value: "54", label: "Regional Educación Alajuela" },

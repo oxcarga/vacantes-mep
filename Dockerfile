@@ -25,4 +25,4 @@ USER pwuser
 
 # Por defecto una sola consulta: sirve para `docker compose run` y para las
 # máquinas programadas de Fly. docker-compose.yml lo cambia por supercronic.
-CMD ["node", "src/monitor.js"]
+CMD ["node", "src/main.js"]

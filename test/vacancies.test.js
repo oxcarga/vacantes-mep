@@ -4,21 +4,23 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
-  DEFAULT_CELL_NAMES,
-  DEFAULT_IDENTITY_CELL_NAMES,
   NTFY_MAX_BYTES,
   buildNotification,
+  specialtyLabel,
+  truncateUtf8,
+} from "../src/notify/index.js";
+import {
+  DEFAULT_CELL_NAMES,
+  DEFAULT_IDENTITY_CELL_NAMES,
   diffVacancies,
   filterVacancies,
   formatVacancy,
   hashVacancies,
   parseVacancies,
-  specialtyLabel,
-  truncateUtf8,
   uniqueVacancies,
   vacancyId,
   vacancyKey,
-} from "../src/vacancies.js";
+} from "../src/vacancies/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = readFileSync(
@@ -124,6 +126,15 @@ describe("uniqueVacancies", () => {
     );
     assert.deepEqual(deduped, [espanolA, espanolB]);
   });
+
+  it("keeps the same vacancy when it appears in two regionales", () => {
+    const a = { ...espanolA, Regional: "Pérez Zeledón" };
+    const b = { ...espanolA, Regional: "Alajuela" };
+    assert.deepEqual(uniqueVacancies([a, b], DEFAULT_IDENTITY_CELL_NAMES), [
+      a,
+      b,
+    ]);
+  });
 });
 
 describe("vacancy identity", () => {
@@ -161,6 +172,10 @@ describe("vacancy identity", () => {
       hashVacancies([espanolA]),
       hashVacancies([espanolA, espanolB]),
     );
+    assert.notEqual(
+      hashVacancies([{ ...espanolA, Regional: "Pérez Zeledón" }]),
+      hashVacancies([{ ...espanolA, Regional: "Alajuela" }]),
+    );
   });
 });
 
@@ -187,6 +202,14 @@ describe("diffVacancies", () => {
     assert.equal(diff.changed.length, 1);
     assert.equal(diff.changed[0].before.Lecciones, "30");
     assert.equal(diff.changed[0].after.Lecciones, "32");
+  });
+
+  it("treats the same identity in two regionales as two vacancies", () => {
+    const pz = { ...espanolA, Regional: "Pérez Zeledón" };
+    const alajuela = { ...espanolA, Regional: "Alajuela" };
+    const diff = diffVacancies([pz], [pz, alajuela]);
+    assert.deepEqual(diff.added, [alajuela]);
+    assert.deepEqual(diff.removed, []);
   });
 
   it("stays quiet when the same rows come back in another order", () => {

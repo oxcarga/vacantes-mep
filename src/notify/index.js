@@ -1,35 +1,13 @@
-import {
+import { sendNtfy } from "./ntfy.js";
+import { sendTelegram } from "./telegram.js";
+
+export { buildNotification, specialtyLabel } from "./compose.js";
+export {
   NTFY_MAX_BYTES,
   TELEGRAM_MAX_CHARS,
   truncateChars,
   truncateUtf8,
-} from "./vacancies.js";
-
-async function sendNtfy(message, topic) {
-  const res = await fetch(`https://ntfy.sh/${topic}`, {
-    method: "POST",
-    body: truncateUtf8(message, NTFY_MAX_BYTES),
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-  });
-  if (!res.ok) {
-    throw new Error(`ntfy.sh HTTP ${res.status}: ${res.statusText}`);
-  }
-}
-
-async function sendTelegram(message, token, chatId) {
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: truncateChars(message, TELEGRAM_MAX_CHARS),
-      disable_web_page_preview: true,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Telegram HTTP ${res.status}: ${res.statusText}`);
-  }
-}
+} from "./truncate.js";
 
 /**
  * Delivers to every configured channel and only rejects once all of them have

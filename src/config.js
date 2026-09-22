@@ -25,6 +25,12 @@ export const DEFAULT_IDENTITY_CELL_NAMES = [
   "Institución",
 ];
 
+/**
+ * Coerces an env var string to a boolean.
+ * @param {string | undefined} value - Raw value from process.env.
+ * @param {boolean} defaultValue - Returned when `value` is absent or unrecognised.
+ * @returns {boolean}
+ */
 export function envFlag(value, defaultValue) {
   if (value === undefined || String(value).trim() === "") return defaultValue;
   const normalized = String(value).trim().toLowerCase();
@@ -33,16 +39,35 @@ export function envFlag(value, defaultValue) {
   return defaultValue;
 }
 
+/**
+ * Returns the trimmed env var string, or `fallback` when the variable is absent or blank.
+ * @param {string | undefined} value - Raw value from process.env.
+ * @param {string} [fallback=""] - Value returned when `value` is empty.
+ * @returns {string}
+ */
 export function envText(value, fallback = "") {
   const text = (value ?? "").toString().trim();
   return text || fallback;
 }
 
+/**
+ * Parses an env var as an integer. Returns `fallback` when parsing fails or the result is below `min`.
+ * @param {string | undefined} value - Raw value from process.env.
+ * @param {number} fallback - Returned on parse failure or when the result is out of range.
+ * @param {{ min?: number }} [options]
+ * @returns {number}
+ */
 export function envInt(value, fallback, { min = 0 } = {}) {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
   return Number.isFinite(parsed) && parsed >= min ? parsed : fallback;
 }
 
+/**
+ * Splits a comma-separated env var into a trimmed string array. Returns `fallback` when empty.
+ * @param {string | undefined} value - Raw value from process.env.
+ * @param {string[]} [fallback=[]] - Returned when `value` is absent or produces no items.
+ * @returns {string[]}
+ */
 export function envList(value, fallback = []) {
   const items = String(value ?? "")
     .split(",")
@@ -52,9 +77,11 @@ export function envList(value, fallback = []) {
 }
 
 /**
- * Column filters are declared as a pair of variables so the column heading and
- * the value to match stay configurable: TABLE_FILTER_<NAME> is the data-label
- * to read and TABLE_FILTER_<NAME>_VALUE holds one or more accepted values.
+ * Builds the active column filter list from the environment. Each filter is a
+ * pair: TABLE_FILTER_<NAME> names the `data-label` column to read and
+ * TABLE_FILTER_<NAME>_VALUE lists the accepted values (comma-separated).
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {{ column: string, values: string[] }[]}
  */
 function columnFilters(env) {
   return [
@@ -70,6 +97,13 @@ function columnFilters(env) {
     .filter((filter) => filter.column && filter.values.length > 0);
 }
 
+/**
+ * Reads all environment variables and returns a validated, typed config object
+ * used throughout the app. Accepts an optional `env` map so tests can inject
+ * values without touching `process.env`.
+ * @param {NodeJS.ProcessEnv} [env=process.env]
+ * @returns {Object} Fully resolved config with typed, defaulted values for every setting.
+ */
 export function loadConfig(env = process.env) {
   const cellNames = envList(env.TABLE_CELL_NAMES, DEFAULT_CELL_NAMES);
   const identityCellNames = envList(
@@ -78,13 +112,9 @@ export function loadConfig(env = process.env) {
   ).filter((name) => cellNames.includes(name));
 
   const especialidades = envList(env.TABLE_FILTER_ESPECIALIDAD_VALUE);
-  // Only fall back to Pérez Zeledón when neither half of the pair is set:
-  // defaulting the value on its own would override a label chosen alone.
-  const chosenLabel = envText(env.DROPDOWN_OPTION_LABEL);
-  const chosenValue = envText(env.DROPDOWN_OPTION_VALUE);
-  const dropdownLabel =
-    chosenLabel || (chosenValue ? "" : "Regional Educación Perez Zeledon");
-  const dropdownValue = chosenValue || (chosenLabel ? "" : "53");
+  const dropdownLabel = envText(env.DROPDOWN_OPTION_LABEL);
+  const dropdownValue = envText(env.DROPDOWN_OPTION_VALUE);
+  const scrapeAllRegionales = !dropdownLabel && !dropdownValue;
 
   return {
     targetUrl: envText(env.TARGET_URL, "https://apps.mep.go.cr/formulario"),
@@ -97,6 +127,7 @@ export function loadConfig(env = process.env) {
     dropdownSelector: envText(env.DROPDOWN_SELECTOR, "#regionalSelect"),
     dropdownOptionValue: dropdownValue,
     dropdownOptionLabel: dropdownLabel,
+    scrapeAllRegionales,
     dropdownWaitAfterMs: envInt(env.DROPDOWN_WAIT_AFTER_MS, 2000),
     dropdownCustom: envFlag(env.DROPDOWN_CUSTOM, true),
     dropdownOptionSelector: envText(
@@ -113,7 +144,9 @@ export function loadConfig(env = process.env) {
     columnFilters: columnFilters(env),
     allowEmptyTable: envFlag(env.ALLOW_EMPTY_TABLE, false),
 
-    regional: dropdownLabel || dropdownValue,
+    regional: scrapeAllRegionales
+      ? "todas las regionales"
+      : dropdownLabel || dropdownValue,
     especialidades,
 
     baselinePath: resolve(

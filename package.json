@@ -3,9 +3,11 @@
   "version": "2.0.0",
   "description": "Vigila las vacantes de profesores del MEP y avisa por ntfy.sh o Telegram sólo cuando cambian",
   "type": "module",
-  "main": "src/monitor.js",
+  "main": "src/main.js",
   "scripts": {
-    "monitor": "node src/monitor.js",
+    "monitor": "node src/main.js",
+    "scrape:regionales": "node scripts/scrape-regionales.js",
+    "scrape:all": "node scripts/vacancies-per-regional.js",
     "test": "node --test",
     "spike:mep": "node scripts/spike-mep-api.js"
   },

@@ -7,13 +7,11 @@ publicarse o cuando cambian sus detalles.
 
 ## Cómo funciona
 
-1. **Consulta** — Chromium abre el formulario, escoge la regional y espera a que
-   la tabla cargue. El sitio es una app Blazor Server: sin navegador la tabla no
-   existe (ver [el spike](#el-mep-necesita-chromium)).
-2. **Pagina** — recorre el paginador y junta todas las páginas de la tabla, no
-   sólo la primera.
-3. **Filtra** — se queda con las filas cuya especialidad (u otra columna) tiene
-   el valor configurado.
+1. **Consulta** — Chromium abre el formulario y recorre **todas las regionales**
+   del dropdown (o una sola, si configura `DROPDOWN_OPTION_*`). El sitio es una
+   app Blazor Server: sin navegador la tabla no existe (ver [el spike](#el-mep-necesita-chromium)).
+2. **Pagina** — recorre el paginador de cada regional y junta todas las páginas.
+3. **Filtra** — opcional; por omisión se queda con todas las filas.
 4. **Compara** — contrasta el resultado contra el estado de la consulta anterior.
 5. **Avisa** — envía una sola notificación con las altas, bajas y modificaciones.
    Si no cambió nada, no manda nada.
@@ -22,15 +20,15 @@ publicarse o cuando cambian sus detalles.
 
 ```bash
 cp .env.example .env
-# Edite .env: al menos NTFY_TOPIC (o TELEGRAM_*) y la regional que le interesa.
+# Edite .env: al menos NTFY_TOPIC (o TELEGRAM_*).
 
 npm install
 npx playwright install chromium
 npm run monitor
 ```
 
-La primera consulta manda la lista completa para que confirme que los filtros
-están bien. A partir de ahí sólo avisa cuando algo cambia.
+La primera consulta manda la lista completa. A partir de ahí sólo avisa cuando
+algo cambia.
 
 ## Dónde ejecutarlo
 
@@ -40,9 +38,9 @@ El workflow `.github/workflows/monitor.yml` corre cada hora.
 
 1. Haga fork del repo.
 2. En **Settings → Secrets and variables → Actions** agregue:
-   - **Variables**: `TARGET_URL`, `DROPDOWN_OPTION_VALUE` o
-     `DROPDOWN_OPTION_LABEL`, `TABLE_FILTER_ESPECIALIDAD_VALUE`, y cualquier otra
-     de la [tabla de variables](#variables-de-entorno).
+   - **Variables**: las de la [tabla de variables](#variables-de-entorno) que
+     quiera cambiar (por omisión se consultan **todas** las regionales, sin
+     filtro de especialidad).
    - **Secrets**: `NTFY_TOPIC` y/o `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
      Opcionalmente `DATABASE_URL` y `DATABASE_AUTH_TOKEN`.
 3. Haga push. También puede lanzarlo a mano desde **Actions → Run workflow**.
@@ -56,7 +54,7 @@ repos públicos tras 60 días sin commits.
 ### Docker en un VPS
 
 ```bash
-cp .env.example .env      # configure su regional y su canal de notificación
+cp .env.example .env      # configure su canal de notificación
 docker compose up -d      # supercronic consulta cada hora dentro del contenedor
 docker compose logs -f scraper
 
@@ -135,8 +133,8 @@ apuntan al formulario del MEP.
 | `HEADLESS` | `1` | `0` muestra el navegador (para depurar) |
 | `PLAYWRIGHT_LAUNCH_ARGS` | — | Argumentos de Chromium separados por coma |
 | `DROPDOWN_SELECTOR` | `#regionalSelect` | Selector del combo de regional |
-| `DROPDOWN_OPTION_VALUE` | `53` | Value de la regional |
-| `DROPDOWN_OPTION_LABEL` | `Regional Educación Perez Zeledon` | Nombre de la regional |
+| `DROPDOWN_OPTION_VALUE` | — | Value de **una** regional. Vacío = todas |
+| `DROPDOWN_OPTION_LABEL` | — | Nombre de **una** regional. Vacío = todas |
 | `DROPDOWN_CUSTOM` | `1` | Sólo aplica si el combo no es un `<select>` |
 | `DROPDOWN_OPTION_SELECTOR` | `.mud-list-item, [role='option'], …` | Opciones de un combo no nativo |
 | `DROPDOWN_WAIT_AFTER_MS` | `2000` | Espera tras escoger la regional |
@@ -177,12 +175,12 @@ Los mensajes se recortan al límite de cada servicio (4 KB en ntfy, 4096
 caracteres en Telegram) sin partir una tilde por la mitad. Si configura ambos
 canales, que falle uno no impide que llegue el otro.
 
-## Otras regionales
+## Una sola regional
 
-`DROPDOWN_OPTION_VALUE=53` es Pérez Zeledón. Si no sabe el value de la suya,
-ponga sólo `DROPDOWN_OPTION_LABEL` con el nombre (o parte del nombre) y ejecute
-`npm run monitor`: si no lo encuentra, el error lista todas las regionales que
-ofrece el formulario, con su value.
+Por omisión se recorren todas. Para vigilar sólo Pérez Zeledón:
+`DROPDOWN_OPTION_VALUE=53` (o `DROPDOWN_OPTION_LABEL` con el nombre o parte del
+nombre). Si no lo encuentra, el error lista todas las regionales del formulario,
+con su value.
 
 ## Desarrollo
 
@@ -194,14 +192,14 @@ HEADLESS=0 npm run monitor   # ver el navegador mientras consulta
 Los módulos separan la lógica pura de los efectos, así que casi todo se prueba
 sin navegador:
 
-| Archivo | Responsabilidad |
+| Módulo | Responsabilidad |
 |---|---|
+| `src/main.js` | Punto de entrada: orquesta scrape, comparación, aviso y persistencia |
 | `src/config.js` | Lee y valida las variables de entorno |
-| `src/scrape.js` | Chromium: regional, paginador, diagnóstico del combo |
-| `src/vacancies.js` | Parseo, filtros, comparación y redacción del mensaje |
-| `src/store.js` | Estado: archivo JSON o SQLite/Turso, misma interfaz |
-| `src/notify.js` | Envío a ntfy y Telegram |
-| `src/monitor.js` | Orquesta los anteriores |
+| `src/scrape/` | Chromium: regional, paginador, diagnóstico del combo |
+| `src/vacancies/` | Parseo, filtros y comparación de vacantes |
+| `src/store/` | Estado: archivo JSON o SQLite/Turso, misma interfaz |
+| `src/notify/` | Redacción del mensaje y envío a ntfy y Telegram |
 
 `test/monitor.e2e.test.js` levanta un servidor con fixtures y ejecuta el
 monitor de verdad contra los dos tipos de estado.

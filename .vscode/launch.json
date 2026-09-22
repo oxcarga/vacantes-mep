@@ -2,10 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug monitor.js",
+      "name": "Debug main.js",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/src/monitor.js",
+      "program": "${workspaceFolder}/src/main.js",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"]

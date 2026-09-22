@@ -35,11 +35,13 @@ describe("environment helpers", () => {
 });
 
 describe("loadConfig", () => {
-  it("targets the MEP form for Pérez Zeledón out of the box", () => {
+  it("scrapes every regional and applies no filters out of the box", () => {
     const config = loadConfig({});
     assert.equal(config.targetUrl, "https://apps.mep.go.cr/formulario");
-    assert.equal(config.dropdownOptionValue, "53");
-    assert.match(config.dropdownOptionLabel, /Perez Zeledon/);
+    assert.equal(config.dropdownOptionValue, "");
+    assert.equal(config.dropdownOptionLabel, "");
+    assert.equal(config.scrapeAllRegionales, true);
+    assert.equal(config.regional, "todas las regionales");
     assert.deepEqual(config.cellNames, DEFAULT_CELL_NAMES);
     assert.deepEqual(config.columnFilters, []);
   });
@@ -49,12 +51,14 @@ describe("loadConfig", () => {
       DROPDOWN_OPTION_LABEL: "Regional Educación Alajuela",
     });
     assert.equal(config.dropdownOptionValue, "");
+    assert.equal(config.scrapeAllRegionales, false);
     assert.equal(config.regional, "Regional Educación Alajuela");
   });
 
   it("does not keep the default label when only a value is given", () => {
     const config = loadConfig({ DROPDOWN_OPTION_VALUE: "54" });
     assert.equal(config.dropdownOptionLabel, "");
+    assert.equal(config.scrapeAllRegionales, false);
     assert.equal(config.regional, "54");
   });
 

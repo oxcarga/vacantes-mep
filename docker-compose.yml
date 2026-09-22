@@ -22,7 +22,7 @@ services:
       DATABASE_URL: file:/app/data/vacantes.db
     volumes:
       - vacantes-data:/app/data
-    command: ["node", "src/monitor.js"]
+    command: ["node", "src/main.js"]
     shm_size: 1gb
 
 volumes:

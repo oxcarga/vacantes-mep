@@ -89,8 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setVerified(false);
       return;
     }
-    setVerified(next.emailVerified);
-    const result = await next.getIdTokenResult();
+    let result = await next.getIdTokenResult();
+    // reload() flips User.emailVerified before Firestore's ID token does.
+    // Listeners must wait for the refreshed claim or rules deny the list.
+    if (next.emailVerified && result.claims.email_verified !== true) {
+      await next.getIdToken(true);
+      result = await next.getIdTokenResult();
+    }
+    setVerified(result.claims.email_verified === true);
     const claim = result.claims.role;
     setRole(claim === "admin" || claim === "docente" ? claim : "docente");
   }

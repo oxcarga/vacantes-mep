@@ -75,7 +75,7 @@ export default function Home() {
             <p>
               Sesión iniciada como <strong>{user.email}</strong>.
             </p>
-            {!user.emailVerified ? (
+            {!verified ? (
               <p data-testid="unverified-message">
                 Confirme el enlace de verificación en su correo. Hasta entonces
                 no puede ver vacantes, suscripciones ni la pantalla de admin.

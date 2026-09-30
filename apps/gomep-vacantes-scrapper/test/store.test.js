@@ -7,6 +7,7 @@ import { getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { COLLECTIONS } from "@gomep/schema";
 import { DEFAULT_IDENTITY_CELL_NAMES } from "../src/config.js";
+import { especialidadId } from "../src/store/catalogs.js";
 import { createStore } from "../src/store/index.js";
 import { diffVacancies } from "../src/vacancies/index.js";
 
@@ -57,7 +58,13 @@ function storeConfig(kind, dir) {
 
 async function clearFirestore(projectId = "demo-gomep-store") {
   const db = getFirestore(getApp(projectId));
-  for (const name of [COLLECTIONS.openings, COLLECTIONS.scrapeRuns]) {
+  for (const name of [
+    COLLECTIONS.vacantes,
+    COLLECTIONS.corridasScrape,
+    COLLECTIONS.regionales,
+    COLLECTIONS.especialidades,
+    COLLECTIONS.suscripciones,
+  ]) {
     const snapshot = await db.collection(name).get();
     if (snapshot.empty) continue;
     const batch = db.batch();
@@ -243,9 +250,9 @@ describe("json store recovery", () => {
       await store.close();
 
       const db = getFirestore(getApp("demo-gomep-store"));
-      const openings = await db.collection(COLLECTIONS.openings).get();
+      const openings = await db.collection(COLLECTIONS.vacantes).get();
       const runs = await db
-        .collection(COLLECTIONS.scrapeRuns)
+        .collection(COLLECTIONS.corridasScrape)
         .orderBy("startedAt")
         .get();
 
@@ -264,6 +271,85 @@ describe("json store recovery", () => {
       assert.equal(runs.docs[1].get("goneCount"), 1);
       assert.equal(runs.docs[2].get("ok"), false);
       assert.match(String(runs.docs[2].get("error")), /boom/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+(FIRESTORE ? describe : describe.skip)("firestore catalogs", () => {
+  it("upserts empty regionales, keeps missing ones, and does not merge spellings", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "vacantes-catalogs-"));
+    try {
+      const store = await createStore(storeConfig("firestore", dir));
+      await clearFirestore();
+      const firstSeenCommit = {
+        ...commitArgs([], [espanolA]),
+        byRegional: [
+          {
+            regional: { value: "57", label: "Regional Educación Perez Zeledon" },
+            total: 1,
+            scrapedAt: new Date().toISOString(),
+            vacantes: [espanolA],
+          },
+          {
+            regional: { value: "54", label: "Regional Educación Alajuela" },
+            total: 0,
+            scrapedAt: new Date().toISOString(),
+            vacantes: [],
+          },
+        ],
+      };
+      await store.commit(firstSeenCommit);
+      const db = getFirestore(getApp("demo-gomep-store"));
+      const first = await db.collection(COLLECTIONS.vacantes).doc("1001").get();
+      const firstSeen = first.get("firstSeen");
+      assert.equal(first.get("regionalValue"), "57");
+
+      await store.commit({
+        ...commitArgs([espanolA], [
+          { ...espanolA, Especialidad: "Sin Especialidad T-I" },
+          { ...espanolB, Vacante: "1004", Especialidad: "Sin Especialidad T-Ii" },
+        ]),
+        byRegional: [
+          {
+            regional: { value: "57", label: "Pérez Zeledón (nuevo)" },
+            total: 2,
+            scrapedAt: new Date().toISOString(),
+            vacantes: [
+              { ...espanolA, Especialidad: "Sin Especialidad T-I" },
+              { ...espanolB, Vacante: "1004", Especialidad: "Sin Especialidad T-Ii" },
+            ],
+          },
+        ],
+      });
+
+      const regionales = await db.collection(COLLECTIONS.regionales).get();
+      const ids = regionales.docs.map((docSnap) => docSnap.id).sort();
+      assert.deepEqual(ids, ["54", "57"]);
+      assert.equal(
+        regionales.docs.find((docSnap) => docSnap.id === "54").get("label"),
+        "Regional Educación Alajuela",
+      );
+      assert.equal(
+        regionales.docs.find((docSnap) => docSnap.id === "57").get("label"),
+        "Pérez Zeledón (nuevo)",
+      );
+
+      const especialidades = await db.collection(COLLECTIONS.especialidades).get();
+      const names = especialidades.docs.map((docSnap) => docSnap.get("name")).sort();
+      assert.ok(names.includes("Español"));
+      assert.ok(names.includes("Sin Especialidad T-I"));
+      assert.ok(names.includes("Sin Especialidad T-Ii"));
+      assert.equal(
+        especialidades.docs.find((docSnap) => docSnap.id === especialidadId("Sin Especialidad T-I")).get("name"),
+        "Sin Especialidad T-I",
+      );
+
+      const again = await db.collection(COLLECTIONS.vacantes).doc("1001").get();
+      assert.equal(again.get("firstSeen"), firstSeen);
+      assert.equal(again.get("regionalValue"), "57");
+      await store.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

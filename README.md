@@ -64,22 +64,25 @@ npm run dev
 
 Colecciones (definidas en [`packages/schema`](packages/schema)):
 
-**`vacantes/{id}`** — `id` es el número de Vacante del MEP. (El código vigente aún usa la colección `openings` hasta aplicar el cambio OpenSpec *accounts-subscriptions-and-alerts*.)
+**`vacantes/{id}`** — `id` es el número de Vacante del MEP.
 
 | Campo | Tipo | Notas |
 |---|---|---|
-| `regional` | string | |
+| `regional` | string | etiqueta del dropdown |
+| `regionalValue` | string | value del dropdown MEP |
 | `especialidad` | string | copia de `fields.Especialidad`, para consultas futuras |
 | `summary` | string | |
 | `fields` | map | celdas del scrape, más `Aplicar` (URL del botón) |
 | `firstSeen` / `lastSeen` | string ISO-8601 | `firstSeen` no se pisa al reaparecer |
 | `active` | boolean | `false` cuando deja de publicarse |
 
-**`corridas_scrape/{autoId}`** — una fila por consulta, exitosa o fallida (hoy `scrape_runs` en código):
+**`corridas_scrape/{autoId}`** — una fila por consulta, exitosa o fallida:
 `startedAt`, `finishedAt`, `ok`, `regional`, `rowCount`, `contentHash`,
 `error`, `newCount`, `goneCount`, `changedCount`.
 
-Reglas: el Admin SDK del Job escribe; un usuario autenticado puede leer.
+Reglas: el Admin SDK del Job escribe; docentes verificados leen vacantes
+activas; un admin lee el historial. `ADMIN_EMAILS` (app) y `RESEND_API_KEY` /
+`MAIL_FROM` (job) se configuran por entorno.
 Despliegue: `firebase deploy --only firestore`.
 
 ### Importar un baseline JSON (opcional)
@@ -130,11 +133,9 @@ fly apps destroy vacantes-mep
 ## Desplegar gomep-vacantes (App Hosting)
 
 En Firebase Console → App Hosting, conecte este repo y ponga el directorio
-raíz del backend en `apps/gomep-vacantes`. Active el proveedor Google en
-Authentication. Las variables `NEXT_PUBLIC_FIREBASE_*` van en el backend de
-App Hosting.
-
-Esta versión sólo muestra inicio de sesión. No hay tabla de vacantes todavía.
+raíz del backend en `apps/gomep-vacantes`. Active correo/contraseña y enlace
+por correo en Authentication. Las variables `NEXT_PUBLIC_FIREBASE_*` y
+`ADMIN_EMAILS` van en el backend de App Hosting.
 
 ## Qué hace con el resultado
 
@@ -173,6 +174,9 @@ Todas son opcionales.
 | `BASELINE_PATH` | `data/baseline.json` | JSON local si no hay Firestore |
 | `FIRESTORE_PROJECT_ID` | `GOOGLE_CLOUD_PROJECT` | Proyecto Firestore |
 | `FIRESTORE_EMULATOR_HOST` | — | p.ej. `127.0.0.1:8080` |
+| `RESEND_API_KEY` | — | API de Resend; sin ella el scrape solo registra el correo |
+| `MAIL_FROM` | — | Remitente, p.ej. `GoMEP Vacantes <alertas@example.com>` |
+| `APP_URL` | — | Enlace en recordatorios de suscripción |
 
 Los filtros van en pares: `TABLE_FILTER_ESPECIALIDAD` dice **qué columna** y
 `TABLE_FILTER_ESPECIALIDAD_VALUE` **qué valores**. Para dos especialidades:

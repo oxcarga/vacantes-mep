@@ -7,12 +7,12 @@ por `gomep-vacantes-scrapper` y `gomep-vacantes`.
 
 | Colección en Firestore | Notas |
 |---|---|
-| `vacantes` | Una fila por vacante del MEP (`id` = número de Vacante). Hoy el código aún exporta la clave `openings` hasta completar la migración del cambio *accounts-subscriptions-and-alerts*. |
-| `corridas_scrape` | Una fila por ejecución del scrape (éxito o fallo). Hoy la clave en código es `scrape_runs`. |
-| `regionales` | Catálogo del dropdown MEP (pendiente de implementar). |
-| `especialidades` | Catálogo de textos de especialidad (pendiente). |
-| `suscripciones` | Suscripciones docente regional + especialidad (pendiente). |
-| `usuarios` | Perfil y rol en Firestore (pendiente). |
+| `vacantes` | Una fila por vacante del MEP (`id` = número de Vacante). Incluye `regionalValue`. |
+| `corridas_scrape` | Una fila por ejecución del scrape (éxito o fallo). |
+| `regionales` | Catálogo del dropdown MEP (`id` = value de la opción). |
+| `especialidades` | Catálogo de textos de especialidad (`id` = SHA-256 del texto exacto). |
+| `suscripciones` | Suscripciones docente regional + especialidad. |
+| `usuarios` | Perfil y rol en Firestore (`id` = uid de Auth). |
 
 En `vacantes`, el campo `especialidad` está desnormalizado para consultas por par
-regional/especialidad sin otra migración.
+regional/especialidad.

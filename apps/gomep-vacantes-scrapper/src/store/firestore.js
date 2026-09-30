@@ -5,7 +5,9 @@ import {
   DEFAULT_FIRESTORE_PROJECT_ID,
 } from "@gomep/schema";
 import { vacancyId, vacancyRegional } from "../vacancies/identity.js";
+import { especialidadId, regionalValueByVacancyId } from "./catalogs.js";
 import { summarize } from "./schema.js";
+import { notifyAfterSuccessfulCommit } from "../notify/after-commit.js";
 
 const WRITE_CHUNK = 400;
 const GET_CHUNK = 100;
@@ -57,27 +59,32 @@ async function commitInChunks(db, operations) {
  * @param {string} [options.firestoreProjectId]
  * @param {string} options.regional
  * @param {string[]} options.identityCellNames
+ * @param {typeof import("../mail/resend.js").sendMail} [options.sendMail]
  */
 export async function createFirestoreStore({
   firestoreProjectId,
   regional,
   identityCellNames,
+  sendMail,
 }) {
   const projectId = firestoreProjectId || DEFAULT_FIRESTORE_PROJECT_ID;
   const app = ensureApp(projectId);
   const db = getFirestore(app);
-  const openings = db.collection(COLLECTIONS.openings);
-  const scrapeRuns = db.collection(COLLECTIONS.scrapeRuns);
+  const vacantes = db.collection(COLLECTIONS.vacantes);
+  const corridas = db.collection(COLLECTIONS.corridasScrape);
+  const regionales = db.collection(COLLECTIONS.regionales);
+  const especialidades = db.collection(COLLECTIONS.especialidades);
 
   return {
     kind: "firestore",
-    description: `firestore://${projectId}/${COLLECTIONS.openings}`,
+    description: `firestore://${projectId}/${COLLECTIONS.vacantes}`,
+    db,
 
     async init() {},
 
     async loadPrevious() {
-      const runs = await scrapeRuns.where("ok", "==", true).limit(1).get();
-      const snapshot = await openings.where("active", "==", true).get();
+      const runs = await corridas.where("ok", "==", true).limit(1).get();
+      const snapshot = await vacantes.where("active", "==", true).get();
       return {
         isFirstRun: runs.empty,
         vacancies: snapshot.docs.map((doc) => doc.get("fields") ?? {}),
@@ -86,6 +93,7 @@ export async function createFirestoreStore({
 
     async commit({
       current,
+      byRegional,
       added,
       removed,
       changed,
@@ -98,8 +106,9 @@ export async function createFirestoreStore({
         currentById.set(vacancyId(vacancy), vacancy);
       }
       const uniqueCurrent = [...currentById.values()];
+      const valueById = regionalValueByVacancyId(byRegional, vacancyId);
       const refs = uniqueCurrent.map((vacancy) =>
-        openings.doc(vacancyId(vacancy)),
+        vacantes.doc(vacancyId(vacancy)),
       );
       const existing = refs.length > 0 ? await getAllChunked(db, refs) : [];
       const firstSeenById = new Map();
@@ -112,11 +121,13 @@ export async function createFirestoreStore({
         const id = vacancyId(vacancy);
         const ref = refs[index];
         const firstSeen = firstSeenById.get(id) || now;
+        const regionalValue = valueById.get(id) ?? "";
         return (batch) => {
           batch.set(
             ref,
             {
               regional: scope,
+              regionalValue,
               especialidad: String(vacancy.Especialidad ?? "").trim(),
               summary: summarize(vacancy, identityCellNames),
               fields: vacancy,
@@ -132,7 +143,7 @@ export async function createFirestoreStore({
       for (const vacancy of removed) {
         const id = vacancyId(vacancy);
         if (currentById.has(id)) continue;
-        const ref = openings.doc(id);
+        const ref = vacantes.doc(id);
         operations.push((batch) => {
           batch.set(
             ref,
@@ -142,8 +153,37 @@ export async function createFirestoreStore({
         });
       }
 
+      if (Array.isArray(byRegional)) {
+        for (const group of byRegional) {
+          const value = String(group?.regional?.value ?? "").trim();
+          if (!value) continue;
+          const label = String(group?.regional?.label ?? "").trim();
+          const ref = regionales.doc(value);
+          operations.push((batch) => {
+            batch.set(
+              ref,
+              { label, lastSeen: now },
+              { merge: true },
+            );
+          });
+        }
+
+        const seenEspecialidad = new Set();
+        for (const group of byRegional) {
+          for (const vacancy of group?.vacantes ?? []) {
+            const name = String(vacancy?.Especialidad ?? "");
+            if (!name || seenEspecialidad.has(name)) continue;
+            seenEspecialidad.add(name);
+            const ref = especialidades.doc(especialidadId(name));
+            operations.push((batch) => {
+              batch.set(ref, { name, lastSeen: now }, { merge: true });
+            });
+          }
+        }
+      }
+
       operations.push((batch) => {
-        batch.set(scrapeRuns.doc(), {
+        batch.set(corridas.doc(), {
           startedAt,
           finishedAt: now,
           ok: true,
@@ -158,10 +198,25 @@ export async function createFirestoreStore({
       });
 
       await commitInChunks(db, operations);
+
+      const addedWithValue = added.map((vacancy) => ({
+        ...vacancy,
+        regionalValue: valueById.get(vacancyId(vacancy)) ?? "",
+      }));
+      try {
+        await notifyAfterSuccessfulCommit({
+          db,
+          added: addedWithValue,
+          sendMail,
+          now: new Date(),
+        });
+      } catch (error) {
+        console.error("No se pudo enviar correo tras el scrape:", error);
+      }
     },
 
     async recordFailure({ startedAt, error }) {
-      await scrapeRuns.add({
+      await corridas.add({
         startedAt,
         finishedAt: new Date().toISOString(),
         ok: false,

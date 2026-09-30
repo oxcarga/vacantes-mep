@@ -138,7 +138,7 @@ for (const kind of STORE_KINDS) {
           ],
         });
         const db = getFirestore(getApp("demo-gomep-e2e"));
-        for (const name of [COLLECTIONS.openings, COLLECTIONS.scrapeRuns]) {
+        for (const name of [COLLECTIONS.vacantes, COLLECTIONS.corridasScrape]) {
           const snapshot = await db.collection(name).get();
           if (snapshot.empty) continue;
           const batch = db.batch();

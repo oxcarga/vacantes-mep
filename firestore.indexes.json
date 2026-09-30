@@ -1,7 +1,15 @@
 {
   "indexes": [
     {
-      "collectionGroup": "openings",
+      "collectionGroup": "vacantes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "lastSeen", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vacantes",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "active", "order": "ASCENDING" },
@@ -9,12 +17,30 @@
       ]
     },
     {
-      "collectionGroup": "openings",
+      "collectionGroup": "vacantes",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "active", "order": "ASCENDING" },
-        { "fieldPath": "regional", "order": "ASCENDING" },
+        { "fieldPath": "regionalValue", "order": "ASCENDING" },
         { "fieldPath": "especialidad", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "suscripciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "regionalValue", "order": "ASCENDING" },
+        { "fieldPath": "especialidad", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "suscripciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
       ]
     }
   ],

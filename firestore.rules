@@ -1,16 +1,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Writes go through the Cloud Run Job via the Admin SDK, which bypasses
-    // these rules. Authenticated users may read so a later admin UI can query
-    // without a second backend.
-    match /openings/{id} {
-      allow read: if request.auth != null;
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerified() && request.auth.token.role == "admin";
+    }
+
+    match /vacantes/{id} {
+      allow read: if isAdmin() || (isVerified() && resource.data.active == true);
       allow write: if false;
     }
 
-    match /scrape_runs/{id} {
-      allow read: if request.auth != null;
+    match /regionales/{id} {
+      allow read: if isVerified();
+      allow write: if false;
+    }
+
+    match /especialidades/{id} {
+      allow read: if isVerified();
+      allow write: if false;
+    }
+
+    match /suscripciones/{id} {
+      allow read: if isAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /usuarios/{uid} {
+      allow read: if isAdmin() || (isVerified() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    match /corridas_scrape/{id} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 

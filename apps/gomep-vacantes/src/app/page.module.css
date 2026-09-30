@@ -6,11 +6,72 @@
   padding: 2rem;
 }
 
-.main {
+.main,
+.mainWide {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   max-width: 32rem;
+  width: 100%;
+}
+
+.mainWide {
+  max-width: 56rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.headerMeta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.form input,
+.form select {
+  font: inherit;
+  padding: 0.45rem 0.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+}
+
+.error {
+  color: #b00020;
 }
 
 .kicker {

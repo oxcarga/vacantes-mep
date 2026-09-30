@@ -1,4 +1,15 @@
 node_modules/
 data/
 .env
+**/.env
+!.env.example
+!**/.env.example
 *.log
+.next
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+*.tsbuildinfo
+.DS_Store

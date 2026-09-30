@@ -2,12 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug main.js",
+      "name": "Debug scraper",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/src/main.js",
-      "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
+      "program": "${workspaceFolder}/apps/gomep-vacantes-scrapper/src/main.js",
+      "cwd": "${workspaceFolder}/apps/gomep-vacantes-scrapper",
+      "envFile": "${workspaceFolder}/apps/gomep-vacantes-scrapper/.env",
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
     }
   ]

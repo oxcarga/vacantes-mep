@@ -1,0 +1,12 @@
+services:
+  scraper-once:
+    profiles: ["once"]
+    build:
+      context: ../..
+      dockerfile: apps/gomep-vacantes-scrapper/Dockerfile
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    shm_size: 1gb
+    init: true
+    mem_limit: 1g

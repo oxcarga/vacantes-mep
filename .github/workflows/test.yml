@@ -20,9 +20,16 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install dependencies
         run: npm ci
 
       # Las pruebas usan un servidor HTTP local con fixtures, sin Chromium.
+      # El emulador de Firestore cubre el store de producción.
       - name: Run tests
-        run: npm test
+        run: npm run test:firestore

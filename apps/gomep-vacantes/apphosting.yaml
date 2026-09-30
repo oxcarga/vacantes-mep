@@ -1,0 +1,8 @@
+# Settings for Firebase App Hosting.
+# In the Firebase console, set the backend root directory to apps/gomep-vacantes.
+
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 4

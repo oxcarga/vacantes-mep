@@ -1,0 +1,29 @@
+schema: spec-driven
+
+# Contexto del proyecto (opcional)
+# Se muestra a la IA al crear artefactos.
+context: |
+  Stack: TypeScript, NextJS, Firebase, Firestore
+  Usamos conventional commits
+  Usamos Firebase Auth para autenticación
+  Usamos Firebase Firestore como base de datos
+  Escribimos los artefactos de OpenSpec (propuesta, diseño, specs, tareas) en español
+  Los nombres de colecciones Firestore en documentación y esquema son en español (vacantes, suscripciones, usuarios, regionales, especialidades, corridas_scrape)
+
+rules:
+  proposal:
+    - Incluir siempre una sección Resumen
+    - Incluir siempre una sección Alcance
+    - Incluir siempre una sección Objetivos
+    - Incluir siempre una sección Fuera de alcance
+    - Mantener la propuesta por debajo de 500 palabras
+    - Escribir en español
+  tasks:
+    - Dividir tareas en bloques de máximo 1 hora
+    - Escribir las tareas en voz activa
+    - Cada tarea de UI incluye una prueba Playwright
+    - Escribir en español
+  design:
+    - Escribir en español
+  specs:
+    - Escribir en español; conservar los encabezos Requirement y Scenario en inglés si el validador lo exige

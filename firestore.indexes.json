@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "openings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "regional", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "openings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "regional", "order": "ASCENDING" },
+        { "fieldPath": "especialidad", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

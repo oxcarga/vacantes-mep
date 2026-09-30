@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/gomep-vacantes-scrapper/Dockerfile
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/gomep/gomep-vacantes-scrapper:latest
+      - .
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/gomep/gomep-vacantes-scrapper:latest

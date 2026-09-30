@@ -1,2 +1,0 @@
-# Consulta cada hora. supercronic lo ejecuta dentro del contenedor scraper.
-0 * * * * node /app/src/main.js

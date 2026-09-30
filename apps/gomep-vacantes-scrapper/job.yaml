@@ -1,0 +1,37 @@
+# Cloud Run Job for gomep-vacantes-scrapper.
+# Replace PROJECT with your GCP project id, then:
+#   gcloud run jobs replace apps/gomep-vacantes-scrapper/job.yaml --region=us-central1
+#
+# Image is built from the repo root:
+#   gcloud builds submit --config apps/gomep-vacantes-scrapper/cloudbuild.yaml
+
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: gomep-vacantes-scrapper
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      template:
+        spec:
+          serviceAccountName: gomep-vacantes-scrapper
+          timeoutSeconds: 3600
+          maxRetries: 1
+          containers:
+            - image: us-central1-docker.pkg.dev/PROJECT/gomep/gomep-vacantes-scrapper:latest
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              env:
+                - name: HEADLESS
+                  value: "1"
+                - name: USE_PLAYWRIGHT
+                  value: "1"
+                - name: PLAYWRIGHT_LAUNCH_ARGS
+                  value: "--disable-dev-shm-usage,--no-sandbox"
+                - name: FIRESTORE_PROJECT_ID
+                  value: PROJECT

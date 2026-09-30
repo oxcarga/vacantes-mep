@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Writes go through the Cloud Run Job via the Admin SDK, which bypasses
+    // these rules. Authenticated users may read so a later admin UI can query
+    // without a second backend.
+    match /openings/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /scrape_runs/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@gomep/schema",
+  "version": "1.0.0",
+  "description": "Shared Firestore collection names and document shapes for gomep-vacantes",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ]
+}

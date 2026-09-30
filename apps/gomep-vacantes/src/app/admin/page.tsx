@@ -6,9 +6,9 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { COLLECTIONS } from "@gomep/schema";
 import { setUserRole } from "@/app/actions";
 import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { getClientAuth, getClientDb } from "@/lib/firebase";
-import styles from "@/app/page.module.css";
 
 type UserRow = { id: string; name: string; email: string; role: string };
 type SubRow = {
@@ -95,44 +95,44 @@ export default function AdminPage() {
   return (
     <AppShell title="Administración">
       {error ? (
-        <p className={styles.error} data-testid="admin-error">
+        <p className="text-destructive" data-testid="admin-error">
           {error}
         </p>
       ) : null}
 
       <h2>Cuentas</h2>
-      <ul data-testid="admin-users">
+      <ul className="flex list-none flex-col gap-2 p-0" data-testid="admin-users">
         {users.map((row) => (
-          <li key={row.id} data-testid={`user-${row.email}`}>
+          <li key={row.id} className="flex flex-wrap items-center gap-2" data-testid={`user-${row.email}`}>
             {row.name} · {row.email} · {row.role}
             {row.id !== user?.uid ? (
               <>
-                <button
+                <Button
                   type="button"
-                  className={styles.secondary}
+                  variant="outline"
                   onClick={() => changeRole(row.id, "admin")}
                   data-testid={`promote-${row.email}`}
                 >
                   Promover
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className={styles.secondary}
+                  variant="outline"
                   onClick={() => changeRole(row.id, "docente")}
                   data-testid={`demote-${row.email}`}
                 >
                   Degradar
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button
                 type="button"
-                className={styles.secondary}
+                variant="outline"
                 onClick={() => changeRole(row.id, "docente")}
                 data-testid={`demote-${row.email}`}
               >
                 Degradarme
-              </button>
+              </Button>
             )}
           </li>
         ))}

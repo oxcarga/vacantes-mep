@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/app-shell";
-import styles from "@/app/page.module.css";
 
 export default function AuthCompletePage() {
   const { completeEmailLink, verifyEmailCode, user, verified } = useAuth();
@@ -46,7 +45,7 @@ export default function AuthCompletePage() {
   return (
     <AppShell title="Completando acceso">
       {error ? (
-        <p className={styles.error} data-testid="link-error">
+        <p className="text-destructive" data-testid="link-error">
           El enlace no es válido o ya se usó. {error}
         </p>
       ) : (

@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/app-shell";
-import styles from "@/app/page.module.css";
 
 export default function VerificarPage() {
   const { user, loading, verified } = useAuth();
@@ -17,7 +16,7 @@ export default function VerificarPage() {
 
   return (
     <AppShell title="Verifique su correo">
-      <p className={styles.muted} data-testid="unverified-message">
+      <p className="leading-relaxed text-muted-foreground" data-testid="unverified-message">
         Confirme el enlace de verificación en su correo. Hasta entonces no
         puede ver vacantes, suscripciones ni la pantalla de admin.
       </p>

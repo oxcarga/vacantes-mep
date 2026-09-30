@@ -9,9 +9,14 @@ import {
   removeSubscription,
 } from "@/app/actions";
 import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { getClientAuth, getClientDb } from "@/lib/firebase";
-import styles from "@/app/page.module.css";
+
+const fieldClass = "flex-col items-stretch gap-1.5 font-normal";
+const selectClass =
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 type CatalogRegional = { id: string; label: string };
 type CatalogEspecialidad = { id: string; name: string };
@@ -105,10 +110,11 @@ export default function SuscripcionesPage() {
 
   return (
     <AppShell title="Suscripciones">
-      <form className={styles.form} onSubmit={onAdd} data-testid="subscribe-form">
-        <label>
+      <form className="flex flex-col gap-3" onSubmit={onAdd} data-testid="subscribe-form">
+        <Label className={fieldClass}>
           Regional
           <select
+            className={selectClass}
             name="regionalValue"
             value={regionalValue}
             onChange={(event) => setRegionalValue(event.target.value)}
@@ -121,10 +127,11 @@ export default function SuscripcionesPage() {
               </option>
             ))}
           </select>
-        </label>
-        <label>
+        </Label>
+        <Label className={fieldClass}>
           Especialidad
           <select
+            className={selectClass}
             name="especialidad"
             value={especialidad}
             onChange={(event) => setEspecialidad(event.target.value)}
@@ -137,30 +144,30 @@ export default function SuscripcionesPage() {
               </option>
             ))}
           </select>
-        </label>
-        <button type="submit" className={styles.primary}>
+        </Label>
+        <Button type="submit" className="w-fit">
           Agregar
-        </button>
+        </Button>
       </form>
       {error ? (
-        <p className={styles.error} data-testid="subscribe-error">
+        <p className="text-destructive" data-testid="subscribe-error">
           {error}
         </p>
       ) : null}
 
       <h2>Activas</h2>
-      <ul data-testid="subs-active">
+      <ul className="flex list-none flex-col gap-2 p-0" data-testid="subs-active">
         {active.map((row) => (
-          <li key={row.id} data-testid={`sub-active-${row.id}`}>
+          <li key={row.id} className="flex flex-wrap items-center gap-3" data-testid={`sub-active-${row.id}`}>
             {row.regionalValue} · {row.especialidad} (vence {row.expiresAt.slice(0, 10)})
-            <button
+            <Button
               type="button"
-              className={styles.secondary}
+              variant="outline"
               onClick={() => onRemove(row.id)}
               data-testid={`remove-sub-${row.id}`}
             >
               Quitar
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
-import styles from "./page.module.css";
+
+const fieldClass = "flex-col items-stretch gap-1.5 font-normal";
 
 export default function Home() {
   const {
@@ -59,14 +64,16 @@ export default function Home() {
   }
 
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <p className={styles.kicker}>gomep-vacantes</p>
-        <h1>Vacantes del MEP</h1>
+    <div className="flex min-h-svh items-center justify-center px-6 py-8">
+      <main className="flex w-full max-w-lg flex-col gap-4">
+        <p className="text-xs tracking-widest text-muted-foreground uppercase">
+          gomep-vacantes
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Vacantes del MEP</h1>
         {loading ? (
           <p>Cargando…</p>
         ) : !configured ? (
-          <p className={styles.muted}>
+          <p className="leading-relaxed text-muted-foreground">
             Configure <code>NEXT_PUBLIC_FIREBASE_*</code> en{" "}
             <code>.env.local</code> para activar el inicio de sesión.
           </p>
@@ -85,104 +92,105 @@ export default function Home() {
                 <a href="/vacantes">Ir a vacantes</a>
               </p>
             )}
-            <button type="button" className={styles.secondary} onClick={signOutUser}>
+            <Button type="button" variant="outline" onClick={signOutUser}>
+              <LogOut aria-hidden />
               Cerrar sesión
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <div className={styles.tabs}>
-              <button
+            <div className="flex gap-2">
+              <Button
                 type="button"
-                className={mode === "register" ? styles.primary : styles.secondary}
+                variant={mode === "register" ? "default" : "outline"}
                 onClick={() => setMode("register")}
               >
                 Registrarse
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className={mode === "login" ? styles.primary : styles.secondary}
+                variant={mode === "login" ? "default" : "outline"}
                 onClick={() => setMode("login")}
               >
                 Entrar
-              </button>
+              </Button>
             </div>
             {mode === "register" ? (
-              <form className={styles.form} onSubmit={onRegister} data-testid="register-form">
-                <label>
+              <form className="flex flex-col gap-3" onSubmit={onRegister} data-testid="register-form">
+                <Label className={fieldClass}>
                   Nombre
-                  <input
+                  <Input
                     name="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     autoComplete="name"
                   />
-                </label>
-                <label>
+                </Label>
+                <Label className={fieldClass}>
                   Teléfono
-                  <input
+                  <Input
                     name="phone"
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
                     autoComplete="tel"
                   />
-                </label>
-                <label>
+                </Label>
+                <Label className={fieldClass}>
                   Correo
-                  <input
+                  <Input
                     name="email"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
                   />
-                </label>
-                <label>
+                </Label>
+                <Label className={fieldClass}>
                   Contraseña
-                  <input
+                  <Input
                     name="password"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
                   />
-                </label>
-                <button type="submit" className={styles.primary}>
+                </Label>
+                <Button type="submit" className="w-fit">
                   Crear cuenta
-                </button>
+                </Button>
               </form>
             ) : (
-              <form className={styles.form} onSubmit={onPasswordLogin} data-testid="login-form">
-                <label>
+              <form className="flex flex-col gap-3" onSubmit={onPasswordLogin} data-testid="login-form">
+                <Label className={fieldClass}>
                   Correo
-                  <input
+                  <Input
                     name="email"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
                   />
-                </label>
-                <label>
+                </Label>
+                <Label className={fieldClass}>
                   Contraseña
-                  <input
+                  <Input
                     name="password"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
                   />
-                </label>
-                <button type="submit" className={styles.primary}>
+                </Label>
+                <Button type="submit" className="w-fit">
                   Entrar con contraseña
-                </button>
-                <button type="button" className={styles.secondary} onClick={onMagicLink}>
+                </Button>
+                <Button type="button" variant="outline" className="w-fit" onClick={onMagicLink}>
                   Enviar magic link
-                </button>
+                </Button>
               </form>
             )}
             {error ? (
-              <p className={styles.error} data-testid="auth-error">
+              <p className="text-destructive" data-testid="auth-error">
                 {error}
               </p>
             ) : null}

@@ -5,9 +5,15 @@ import { useRouter } from "next/navigation";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { COLLECTIONS } from "@gomep/schema";
 import { AppShell } from "@/components/app-shell";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { getClientDb } from "@/lib/firebase";
-import styles from "@/app/page.module.css";
+
+const fieldClass = "flex-col items-stretch gap-1.5 font-normal";
+const selectClass =
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 type Vacante = {
   id: string;
@@ -135,11 +141,12 @@ export default function VacantesPage() {
 
   return (
     <AppShell title="Vacantes abiertas">
-      {error ? <p className={styles.error}>{error}</p> : null}
-      <div className={styles.filters}>
-        <label>
+      {error ? <p className="text-destructive">{error}</p> : null}
+      <div className="flex flex-wrap items-end gap-3">
+        <Label className={`${fieldClass} min-w-48 flex-1`}>
           Regional
           <select
+            className={selectClass}
             value={regionalValue}
             onChange={(event) => setRegionalValue(event.target.value)}
             data-testid="vacantes-regional"
@@ -151,10 +158,11 @@ export default function VacantesPage() {
               </option>
             ))}
           </select>
-        </label>
-        <label>
+        </Label>
+        <Label className={`${fieldClass} min-w-48 flex-1`}>
           Especialidad
           <select
+            className={selectClass}
             value={especialidad}
             onChange={(event) => setEspecialidad(event.target.value)}
             data-testid="vacantes-especialidad"
@@ -166,12 +174,12 @@ export default function VacantesPage() {
               </option>
             ))}
           </select>
-        </label>
-        <p className={styles.count} data-testid="vacantes-count">
+        </Label>
+        <p className="text-sm" data-testid="vacantes-count">
           {visible.length}
         </p>
       </div>
-      <ul className={styles.list} data-testid="vacantes-list">
+      <ul className="flex list-none flex-col gap-3 p-0" data-testid="vacantes-list">
         {visible.map((row) => {
           const institucion = fieldText(row.fields?.Institución);
           const puesto = fieldText(row.fields?.["Clase de Puesto"]);
@@ -180,39 +188,50 @@ export default function VacantesPage() {
           const regionalLabel = labelByValue.get(row.regionalValue ?? "") || row.regional;
           const seen = formatFirstSeen(row.firstSeen);
           return (
-            <li key={row.id} className={styles.card} data-testid={`vacante-${row.id}`}>
-              <div className={styles.cardTop}>
-                <strong>{row.especialidad}</strong>
-                <span>{row.id}</span>
-              </div>
-              {institucion ? <div>{institucion}</div> : null}
-              <div className={styles.muted}>
-                {regionalLabel}
-                {seen ? ` · ${seen}` : ""}
-              </div>
-              {puesto || lecciones ? (
-                <div>
-                  {puesto}
-                  {puesto && lecciones ? " · " : ""}
-                  {lecciones}
-                </div>
-              ) : null}
-              {aplicar ? (
-                <a className={styles.primary} href={aplicar} target="_blank" rel="noreferrer">
-                  Aplicar
-                </a>
-              ) : null}
+            <li key={row.id} data-testid={`vacante-${row.id}`}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{row.especialidad}</CardTitle>
+                  <span className="text-muted-foreground">{row.id}</span>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-1">
+                  {institucion ? <div>{institucion}</div> : null}
+                  <div className="text-muted-foreground">
+                    {regionalLabel}
+                    {seen ? ` · ${seen}` : ""}
+                  </div>
+                  {puesto || lecciones ? (
+                    <div>
+                      {puesto}
+                      {puesto && lecciones ? " · " : ""}
+                      {lecciones}
+                    </div>
+                  ) : null}
+                </CardContent>
+                {aplicar ? (
+                  <CardFooter className="border-0 bg-transparent">
+                    <a
+                      className={buttonVariants({ className: "w-fit" })}
+                      href={aplicar}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Aplicar
+                    </a>
+                  </CardFooter>
+                ) : null}
+              </Card>
             </li>
           );
         })}
       </ul>
       {rows.length === 0 ? (
-        <p className={styles.muted} data-testid="vacantes-empty">
+        <p className="leading-relaxed text-muted-foreground" data-testid="vacantes-empty">
           No hay vacantes abiertas.
         </p>
       ) : null}
       {filterEmpty ? (
-        <p className={styles.muted} data-testid="vacantes-empty-filter">
+        <p className="leading-relaxed text-muted-foreground" data-testid="vacantes-empty-filter">
           {filterEmpty}
         </p>
       ) : null}

@@ -66,6 +66,18 @@ export async function seedCatalogsAndVacancies() {
     name: "Español",
     lastSeen: new Date().toISOString(),
   });
+  await db.collection(COLLECTIONS.regionales).doc("78").set({
+    label: "Regional Educación Santa Cruz",
+    lastSeen: new Date().toISOString(),
+  });
+  await db.collection(COLLECTIONS.regionales).doc("99").set({
+    label: "Regional sin vacantes",
+    lastSeen: new Date().toISOString(),
+  });
+  await db.collection(COLLECTIONS.especialidades).doc("ing").set({
+    name: "Inglés",
+    lastSeen: new Date().toISOString(),
+  });
   await db.collection(COLLECTIONS.vacantes).doc("1001").set({
     regional: "Regional Educación Perez Zeledon",
     regionalValue: "57",
@@ -85,6 +97,33 @@ export async function seedCatalogsAndVacancies() {
     firstSeen: "2026-01-01T00:00:00.000Z",
     lastSeen: "2026-01-02T00:00:00.000Z",
     active: false,
+  });
+  await db.collection(COLLECTIONS.vacantes).doc("1003").set({
+    regional: "Etiqueta vieja",
+    regionalValue: "78",
+    especialidad: "Inglés",
+    summary: "1003 | Inglés",
+    fields: {
+      Vacante: "1003",
+      Especialidad: "Inglés",
+      Institución: "Liceo Pérez Zeledón",
+      "Clase de Puesto": "Profesor de Enseñanza Media",
+      Lecciones: "30",
+      Aplicar: "https://example.com/aplicar/1003",
+    },
+    firstSeen: "2025-06-01T12:00:00.000Z",
+    lastSeen: "2026-01-02T00:00:00.000Z",
+    active: true,
+  });
+  await db.collection(COLLECTIONS.vacantes).doc("1004").set({
+    regional: "Regional Educación Perez Zeledon",
+    regionalValue: "57",
+    especialidad: "Español",
+    summary: "1004 | Español",
+    fields: { Vacante: "1004", Especialidad: "Español" },
+    firstSeen: "2025-01-01T12:00:00.000Z",
+    lastSeen: "2026-01-02T00:00:00.000Z",
+    active: true,
   });
 }
 

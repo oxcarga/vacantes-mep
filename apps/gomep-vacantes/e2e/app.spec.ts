@@ -85,10 +85,107 @@ test("5.2 enlace de verificación válido abre la shell; uno vencido se rechaza"
   await expect(page.getByTestId("link-error")).toBeVisible();
 });
 
+const firstSeenFormat = new Intl.DateTimeFormat("es-CR", {
+  timeZone: "America/Costa_Rica",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 test("6.1 el docente ve la vacante abierta y no la cerrada", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await expect(page.getByTestId("vacante-1002")).toHaveCount(0);
+});
+
+test("6.3 la ficha muestra los datos de la vacante y omite Aplicar si no hay enlace", async ({
+  page,
+}) => {
+  await login(page, "docente@example.com", "password12");
+  const completa = page.getByTestId("vacante-1003");
+  await expect(completa).toContainText("Inglés");
+  await expect(completa).toContainText("1003");
+  await expect(completa).toContainText("Regional Educación Santa Cruz");
+  await expect(completa).not.toContainText("Etiqueta vieja");
+  await expect(completa).toContainText("Liceo Pérez Zeledón");
+  await expect(completa).toContainText("Profesor de Enseñanza Media");
+  await expect(completa).toContainText("30");
+  await expect(completa).toContainText(
+    firstSeenFormat.format(new Date("2025-06-01T12:00:00.000Z")),
+  );
+  await expect(completa.getByRole("link", { name: "Aplicar" })).toHaveAttribute(
+    "href",
+    "https://example.com/aplicar/1003",
+  );
+
+  const minima = page.getByTestId("vacante-1004");
+  await expect(minima).toContainText("Español");
+  await expect(minima).toContainText("1004");
+  await expect(minima).toContainText("Regional Educación Perez Zeledon");
+  await expect(minima).toContainText(
+    firstSeenFormat.format(new Date("2025-01-01T12:00:00.000Z")),
+  );
+  await expect(minima.getByRole("link", { name: "Aplicar" })).toHaveCount(0);
+  await expect(page.getByTestId("vacante-1002")).toHaveCount(0);
+});
+
+test("6.4 las abiertas se ordenan por primera vista y el conteo las incluye", async ({
+  page,
+}) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const ids = await page
+    .getByTestId("vacantes-list")
+    .locator("li")
+    .evaluateAll((items) => items.map((item) => item.getAttribute("data-testid")));
+  expect(ids.indexOf("vacante-1001")).toBeGreaterThanOrEqual(0);
+  expect(ids.indexOf("vacante-1001")).toBeLessThan(ids.indexOf("vacante-1003"));
+  await expect(page.getByTestId("vacantes-count")).toHaveText("3");
+});
+
+test("6.5 los filtros de regional y especialidad recortan la lista", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+
+  await page.getByTestId("vacantes-regional").selectOption("57");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await expect(page.getByTestId("vacante-1004")).toBeVisible();
+  await expect(page.getByTestId("vacante-1003")).toHaveCount(0);
+
+  await page.getByTestId("vacantes-regional").selectOption("");
+  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await expect(page.getByTestId("vacante-1003")).toBeVisible();
+  await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
+
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await expect(page.getByTestId("vacante-1003")).toBeVisible();
+  await expect(page.getByTestId("vacantes-count")).toHaveText("1");
+
+  await page.getByTestId("vacantes-regional").selectOption("99");
+  await page.getByTestId("vacantes-especialidad").selectOption("");
+  await expect(page.locator("[data-testid^='vacante-']")).toHaveCount(0);
+  await expect(page.getByTestId("vacantes-count")).toHaveText("0");
+});
+
+test("6.6 el filtro sin coincidencias no usa el mensaje de lista vacía", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await page.getByTestId("vacantes-especialidad").selectOption("Español");
+  await expect(page.getByTestId("vacantes-empty-filter")).toHaveText(
+    "No hay vacantes abiertas de Español en Regional Educación Santa Cruz.",
+  );
+  await expect(page.getByTestId("vacantes-empty")).toHaveCount(0);
+
+  const { db } = adminSdk();
+  const open = await db.collection(COLLECTIONS.vacantes).where("active", "==", true).get();
+  try {
+    await Promise.all(open.docs.map((docSnap) => docSnap.ref.delete()));
+    await expect(page.getByTestId("vacantes-empty")).toHaveText("No hay vacantes abiertas.");
+    await expect(page.getByTestId("vacantes-empty-filter")).toHaveCount(0);
+  } finally {
+    await seedCatalogsAndVacancies();
+  }
 });
 
 test("6.2 agregar, quitar y ver el par en historial", async ({ page }) => {

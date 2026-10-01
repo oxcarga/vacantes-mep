@@ -160,6 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async requestMagicLink(email) {
         const trimmed = email.trim();
+        if (!trimmed) {
+          throw new Error("Ingrese su correo.");
+        }
         window.localStorage.setItem(EMAIL_LINK_KEY, trimmed);
         await sendSignInLinkToEmail(getClientAuth(), trimmed, {
           url: `${window.location.origin}/auth/complete`,

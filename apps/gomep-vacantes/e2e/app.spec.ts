@@ -4,7 +4,6 @@ import {
   adminSdk,
   seedCatalogsAndVacancies,
   seedVerifiedUser,
-  waitForOob,
 } from "./helpers";
 
 async function login(page: Page, email: string, password: string) {
@@ -69,6 +68,11 @@ test("5.1 registro queda bloqueado hasta verificar el correo", async ({ page }) 
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="password"]').fill("password12");
   await page.getByRole("button", { name: "Crear cuenta" }).click();
+  await expect(page.getByTestId("register-form")).toBeVisible();
+  const link = page.getByTestId("dev-verify-link");
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", /mode=verifyEmail/);
+  await page.goto("/vacantes");
   await expect(page.getByTestId("unverified-message")).toBeVisible();
   await expect(page.getByTestId("app-nav")).toHaveCount(0);
   await expect(page.getByTestId("vacantes-list")).toHaveCount(0);
@@ -84,15 +88,39 @@ test("5.2 enlace de verificación válido abre la shell; uno vencido se rechaza"
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="password"]').fill("password12");
   await page.getByRole("button", { name: "Crear cuenta" }).click();
-  await expect(page.getByTestId("unverified-message")).toBeVisible();
-
-  const oob = await waitForOob(email, "VERIFY_EMAIL");
-  await page.goto(`/auth/complete?mode=verifyEmail&oobCode=${oob.oobCode}`);
+  const href = await page.getByTestId("dev-verify-link").getAttribute("href");
+  await page.goto(href ?? "");
   await expect(page.getByTestId("app-nav")).toBeVisible();
   await expect(page.getByTestId("session-role")).toHaveText("docente");
 
   await page.goto("/auth/complete?mode=signIn&oobCode=codigo-vencido");
   await expect(page.getByTestId("link-error")).toBeVisible();
+});
+
+test("3.1 el magic link local se muestra bajo el botón y abre la sesión", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Cargando…")).toHaveCount(0);
+  const logout = page.getByRole("button", { name: "Cerrar sesión" });
+  if (await logout.isVisible()) {
+    await logout.click();
+    await expect(page.getByRole("tab", { name: "Entrar" })).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Entrar" }).click();
+  await page
+    .getByTestId("login-form")
+    .locator('input[name="email"]')
+    .fill("docente@example.com");
+  await page.getByRole("button", { name: "Enviar magic link" }).click();
+  await expect(page.getByTestId("auth-info")).toContainText("Revise su correo");
+  const link = page.getByTestId("dev-magic-link");
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", /mode=signIn/);
+  const href = await link.getAttribute("href");
+  await page.goto(href ?? "");
+  await expect(page.getByTestId("app-nav")).toBeVisible();
+  await expect(page.getByTestId("session-role")).toHaveText("docente");
 });
 
 const firstSeenFormat = new Intl.DateTimeFormat("es-CR", {

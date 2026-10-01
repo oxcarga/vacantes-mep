@@ -21,7 +21,40 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { readLocalAuthLink } from "@/app/actions";
 import { useAuth } from "@/lib/auth-context";
+import { isLocalAuthDev } from "@/lib/local-auth-link";
+
+function localAuthDev() {
+  return isLocalAuthDev({
+    useEmulators: process.env.NEXT_PUBLIC_USE_EMULATORS === "1",
+    hostname: window.location.hostname,
+  });
+}
+
+function DevAuthLink({
+  href,
+  testId,
+  error,
+}: {
+  href: string | null;
+  testId: "dev-verify-link" | "dev-magic-link";
+  error: boolean;
+}) {
+  if (href) {
+    return (
+      <a data-testid={testId} href={href} className="text-sm break-all underline">
+        {href}
+      </a>
+    );
+  }
+  if (!error) return null;
+  return (
+    <p data-testid="dev-auth-link-error" className="text-sm text-destructive">
+      No se pudo obtener el enlace del emulador.
+    </p>
+  );
+}
 
 export default function Home() {
   const {
@@ -42,13 +75,31 @@ export default function Home() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [keepRegisterForm, setKeepRegisterForm] = useState(false);
+  const [devVerifyLink, setDevVerifyLink] = useState<string | null>(null);
+  const [devMagicLink, setDevMagicLink] = useState<string | null>(null);
+  const [devLinkError, setDevLinkError] = useState<"verify" | "signin" | null>(null);
 
   async function onRegister(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    setDevVerifyLink(null);
+    if (devLinkError === "verify") setDevLinkError(null);
+    const local = localAuthDev();
+    if (local) setKeepRegisterForm(true);
     try {
       await register({ email, password, phone, name });
-      router.push("/verificar");
+      if (!local) {
+        router.push("/verificar");
+        return;
+      }
+      const result = await readLocalAuthLink(
+        email.trim(),
+        "verify",
+        window.location.origin,
+      );
+      if (result?.href) setDevVerifyLink(result.href);
+      else setDevLinkError("verify");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar");
     }
@@ -68,9 +119,20 @@ export default function Home() {
   async function onMagicLink(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    setDevMagicLink(null);
+    if (devLinkError === "signin") setDevLinkError(null);
+    const local = localAuthDev();
     try {
       await requestMagicLink(email);
       setInfo("Revise su correo para el enlace de acceso.");
+      if (!local) return;
+      const result = await readLocalAuthLink(
+        email.trim(),
+        "signin",
+        window.location.origin,
+      );
+      if (result?.href) setDevMagicLink(result.href);
+      else setDevLinkError("signin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo enviar el enlace");
     }
@@ -99,7 +161,7 @@ export default function Home() {
                   <code>.env.local</code> para activar el inicio de sesión.
                 </AlertDescription>
               </Alert>
-            ) : user ? (
+            ) : user && !keepRegisterForm ? (
               <Card>
                 <CardHeader>
                   <CardTitle>Sesión iniciada</CardTitle>
@@ -189,6 +251,11 @@ export default function Home() {
                         <Button type="submit" className="w-full">
                           Crear cuenta
                         </Button>
+                        <DevAuthLink
+                          href={devVerifyLink}
+                          testId="dev-verify-link"
+                          error={devLinkError === "verify"}
+                        />
                       </Field>
                     </FieldGroup>
                   </form>
@@ -233,6 +300,11 @@ export default function Home() {
                         >
                           Enviar magic link
                         </Button>
+                        <DevAuthLink
+                          href={devMagicLink}
+                          testId="dev-magic-link"
+                          error={devLinkError === "signin"}
+                        />
                       </Field>
                     </FieldGroup>
                   </form>

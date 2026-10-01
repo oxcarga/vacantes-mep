@@ -13,11 +13,12 @@ async function login(page: Page, email: string, password: string) {
   const logout = page.getByRole("button", { name: "Cerrar sesión" });
   if (await logout.isVisible()) {
     await logout.click();
-    await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Entrar" })).toBeVisible();
   }
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await page.locator('input[name="email"]').fill(email);
-  await page.locator('input[name="password"]').fill(password);
+  await page.getByRole("tab", { name: "Entrar" }).click();
+  const form = page.getByTestId("login-form");
+  await form.locator('input[name="email"]').fill(email);
+  await form.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: "Entrar con contraseña" }).click();
 }
 
@@ -49,6 +50,15 @@ test.beforeAll(async () => {
     endReason: "expired",
     reminders: {},
   });
+});
+
+test("el panel de marca muestra el título y las tres líneas", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Cargando…")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Vacantes del MEP" })).toBeVisible();
+  await expect(page.getByText("Plazas abiertas")).toBeVisible();
+  await expect(page.getByText("Alertas por regional y especialidad")).toBeVisible();
+  await expect(page.getByText("Acceso con correo verificado")).toBeVisible();
 });
 
 test("5.1 registro queda bloqueado hasta verificar el correo", async ({ page }) => {

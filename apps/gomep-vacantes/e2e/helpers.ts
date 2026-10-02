@@ -4,11 +4,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { COLLECTIONS } from "@gomep/schema";
 
 const PROJECT = "demo-gomep-vacantes";
-const AUTH = "http://127.0.0.1:9099";
+process.env.FIRESTORE_EMULATOR_HOST ||= "127.0.0.1:8080";
+process.env.FIREBASE_AUTH_EMULATOR_HOST ||= "127.0.0.1:9099";
+const AUTH = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`;
 
 export function adminSdk() {
-  process.env.FIRESTORE_EMULATOR_HOST ||= "127.0.0.1:8080";
-  process.env.FIREBASE_AUTH_EMULATOR_HOST ||= "127.0.0.1:9099";
   const app = getApps()[0] ?? initializeApp({ projectId: PROJECT });
   return { auth: getAuth(app), db: getFirestore(app) };
 }

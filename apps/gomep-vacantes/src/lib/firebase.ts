@@ -35,10 +35,14 @@ function connectEmulators(auth: Auth, db: Firestore) {
   ) {
     return;
   }
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", {
+  const authHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
+  const [firestoreHost, firestorePort] = (
+    process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080"
+  ).split(":");
+  connectAuthEmulator(auth, `http://${authHost}`, {
     disableWarnings: true,
   });
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
   globalThis.__GOMP_EMULATORS__ = true;
 }
 

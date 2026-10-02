@@ -370,3 +370,164 @@ test("7.3 el admin no tiene controles de suscripción", async ({ page }) => {
   await page.goto("/suscripciones");
   await expect(page.getByTestId("subscribe-form")).toHaveCount(0);
 });
+
+test("8.1 la navegación marca la ruta activa", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const nav = page.getByTestId("app-nav");
+  const vacantes = nav.getByRole("link", { name: "Vacantes" });
+  const suscripciones = page.getByTestId("nav-suscripciones");
+  await expect(vacantes).toHaveAttribute("aria-current", "page");
+  await expect(suscripciones).not.toHaveAttribute("aria-current", /.*/);
+
+  await suscripciones.click();
+  await expect(page).toHaveURL(/\/suscripciones$/);
+  await expect(suscripciones).toHaveAttribute("aria-current", "page");
+  await expect(vacantes).not.toHaveAttribute("aria-current", /.*/);
+});
+
+test("8.2 en móvil la sesión sigue ofreciendo cerrar sesión y el rol", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("app-nav")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
+  await expect(page.getByTestId("session-role")).toHaveText("docente");
+});
+
+test("9.1 la ficha marca como Nueva la vacante vista hoy", async ({ page }) => {
+  const ref = adminSdk().db.collection(COLLECTIONS.vacantes).doc("1001");
+  const hoy = new Date().toISOString();
+  await ref.update({ firstSeen: hoy });
+  try {
+    await login(page, "docente@example.com", "password12");
+    const nueva = page.getByTestId("vacante-1001");
+    await expect(nueva).toContainText("Nueva");
+    await expect(nueva).toContainText(firstSeenFormat.format(new Date(hoy)));
+    const vieja = page.getByTestId("vacante-1003");
+    await expect(vieja).toContainText(
+      firstSeenFormat.format(new Date("2025-06-01T12:00:00.000Z")),
+    );
+    await expect(vieja).not.toContainText("Nueva");
+  } finally {
+    await ref.update({ firstSeen: "2026-01-01T00:00:00.000Z" });
+  }
+});
+
+test("9.2 la ficha muestra las lecciones y Aplicar abre en otra pestaña", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  const completa = page.getByTestId("vacante-1003");
+  await expect(completa).toContainText("30 lecciones");
+  await expect(completa.getByRole("link", { name: "Aplicar" })).toHaveAttribute(
+    "target",
+    "_blank",
+  );
+});
+
+test("9.3 el conteo se lee como frase en singular o plural", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const frase = page.locator("p[aria-live='polite']");
+  await expect(frase).toHaveText("3 vacantes");
+  await expect(page.getByTestId("vacantes-count")).toHaveText("3");
+
+  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await expect(frase).toHaveText("1 vacante");
+  await expect(page.getByTestId("vacantes-count")).toHaveText("1");
+});
+
+test("9.4 los filtros siguen siendo selects nativos", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  for (const testId of ["vacantes-regional", "vacantes-especialidad"]) {
+    const tag = await page.getByTestId(testId).evaluate((el) => el.tagName);
+    expect(tag).toBe("SELECT");
+  }
+});
+
+test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const chipRegional = page.getByTestId("vacantes-filtro-regional");
+  const chipEspecialidad = page.getByTestId("vacantes-filtro-especialidad");
+  const limpiar = page.getByTestId("vacantes-limpiar");
+  await expect(chipRegional).toHaveCount(0);
+  await expect(chipEspecialidad).toHaveCount(0);
+  await expect(limpiar).toHaveCount(0);
+
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await expect(chipRegional).toHaveText("Regional Educación Santa Cruz");
+  await expect(chipEspecialidad).toHaveText("Inglés");
+  await expect(limpiar).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Quitar filtro: Regional Educación Santa Cruz" })
+    .click();
+  await expect(chipRegional).toHaveCount(0);
+  await expect(chipEspecialidad).toHaveText("Inglés");
+  await expect(page.getByTestId("vacantes-regional")).toHaveValue("");
+  await expect(page.getByTestId("vacante-1003")).toBeVisible();
+  await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
+
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await limpiar.click();
+  await expect(page.getByTestId("vacantes-regional")).toHaveValue("");
+  await expect(page.getByTestId("vacantes-especialidad")).toHaveValue("");
+  await expect(page.getByTestId("vacantes-count")).toHaveText("3");
+  await expect(chipRegional).toHaveCount(0);
+  await expect(chipEspecialidad).toHaveCount(0);
+  await expect(limpiar).toHaveCount(0);
+});
+
+test("9.6 el filtro sin coincidencias ofrece limpiar filtros", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await page.getByTestId("vacantes-regional").selectOption("78");
+  await page.getByTestId("vacantes-especialidad").selectOption("Español");
+  const limpiar = page.getByTestId("vacantes-empty-filter-limpiar");
+  await expect(limpiar).toBeVisible();
+  await limpiar.click();
+  await expect(page.getByTestId("vacantes-empty-filter")).toHaveCount(0);
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+});
+
+test("9.7 mientras cargan las vacantes no se dice que no hay", async ({ page }) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const listen = "**/google.firestore.v1.Firestore/Listen/**";
+  await page.route(listen, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await login(page, "docente@example.com", "password12");
+    await expect(page.getByTestId("vacantes-loading")).toBeVisible();
+    await expect(page.getByTestId("vacantes-empty")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='vacante-']")).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await expect(page.getByTestId("vacantes-loading")).toHaveCount(0);
+  await page.unroute(listen);
+});
+
+test("9.8 sin vacantes abiertas se ofrece ir a suscripciones", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const { db } = adminSdk();
+  const open = await db.collection(COLLECTIONS.vacantes).where("active", "==", true).get();
+  try {
+    await Promise.all(open.docs.map((docSnap) => docSnap.ref.delete()));
+    await expect(page.getByTestId("vacantes-empty")).toHaveText("No hay vacantes abiertas.");
+    const link = page.getByTestId("vacantes-empty-suscripciones");
+    await expect(link).toHaveAttribute("href", "/suscripciones");
+    await link.click();
+    await expect(page).toHaveURL(/\/suscripciones$/);
+  } finally {
+    await seedCatalogsAndVacancies();
+  }
+});

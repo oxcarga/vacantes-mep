@@ -12,4 +12,5 @@ firestore-debug.log
 ui-debug.log
 pubsub-debug.log
 *.tsbuildinfo
+backups
 .DS_Store

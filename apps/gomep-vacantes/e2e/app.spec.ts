@@ -100,6 +100,11 @@ test("5.2 enlace de verificación válido abre la shell; uno vencido se rechaza"
 test("3.1 el magic link local se muestra bajo el botón y abre la sesión", async ({
   page,
 }) => {
+  const dialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.dismiss();
+  });
   await page.goto("/");
   await expect(page.getByText("Cargando…")).toHaveCount(0);
   const logout = page.getByRole("button", { name: "Cerrar sesión" });
@@ -121,6 +126,30 @@ test("3.1 el magic link local se muestra bajo el botón y abre la sesión", asyn
   await page.goto(href ?? "");
   await expect(page.getByTestId("app-nav")).toBeVisible();
   await expect(page.getByTestId("session-role")).toHaveText("docente");
+  await expect(page.getByTestId("link-error")).toHaveCount(0);
+  expect(dialogs).toEqual([]);
+});
+
+test("1.3 un magic link sin correo guardado ni sesión no pide el correo", async ({
+  page,
+}) => {
+  const dialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.dismiss();
+  });
+  await page.goto("/");
+  await expect(page.getByText("Cargando…")).toHaveCount(0);
+  const logout = page.getByRole("button", { name: "Cerrar sesión" });
+  if (await logout.isVisible()) {
+    await logout.click();
+    await expect(page.getByRole("tab", { name: "Entrar" })).toBeVisible();
+  }
+  await page.evaluate(() => window.localStorage.removeItem("gomepEmailForSignIn"));
+  await page.goto("/auth/complete?mode=signIn&oobCode=sin-correo");
+  await expect(page.getByTestId("link-error")).toBeVisible();
+  await expect(page.getByTestId("app-nav")).toHaveCount(0);
+  expect(dialogs).toEqual([]);
 });
 
 async function logoutIfNeeded(page: Page) {

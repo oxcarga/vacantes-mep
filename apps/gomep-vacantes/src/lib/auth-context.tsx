@@ -177,11 +177,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isSignInWithEmailLink(auth, href);
         if (!isLink) return "none";
         const email =
-          window.localStorage.getItem(EMAIL_LINK_KEY) ||
-          window.prompt("Confirme su correo") ||
-          url.searchParams.get("email") ||
-          auth.currentUser?.email ||
+          window.localStorage.getItem(EMAIL_LINK_KEY)?.trim() ||
+          url.searchParams.get("email")?.trim() ||
+          auth.currentUser?.email?.trim() ||
           "";
+        if (!email) {
+          throw new Error("Falta el correo del enlace.");
+        }
         const credential = await signInWithEmailLink(auth, email, href);
         window.localStorage.removeItem(EMAIL_LINK_KEY);
         await persistProfile(credential.user);

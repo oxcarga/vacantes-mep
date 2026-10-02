@@ -77,11 +77,11 @@ async function persistProfile(user: User) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const configured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(configured);
   const [role, setRole] = useState<AccountRole | null>(null);
   const [verified, setVerified] = useState(false);
-  const configured = isFirebaseConfigured();
 
   async function loadClaims(next: User | null) {
     if (!next) {
@@ -102,10 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (!configured) {
-      setLoading(false);
-      return;
-    }
+    if (!configured) return;
     const auth = getClientAuth();
     const unsubAuth = onAuthStateChanged(auth, async (next) => {
       setUser(next);

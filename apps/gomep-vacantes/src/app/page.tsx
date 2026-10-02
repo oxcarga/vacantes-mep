@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,6 +31,21 @@ function localAuthDev() {
     useEmulators: process.env.NEXT_PUBLIC_USE_EMULATORS === "1",
     hostname: window.location.hostname,
   });
+}
+
+function devPrefillEmail() {
+  if (typeof window === "undefined" || !localAuthDev()) return "";
+  const devRole = new URLSearchParams(window.location.search).get("r");
+  if (!devRole) return "";
+  return devRole === "a" ? "admin@test.com" : "docente@test.com";
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
+function readVerifiedNotice() {
+  return new URLSearchParams(window.location.search).get("verificado") === "1";
 }
 
 function DevAuthLink({
@@ -70,7 +85,7 @@ export default function Home() {
   } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState("register");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(devPrefillEmail);
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
@@ -83,12 +98,11 @@ export default function Home() {
   const [devLinkError, setDevLinkError] = useState<
     "verify" | "signin" | "login-verify" | null
   >(null);
-  const [verifiedNotice, setVerifiedNotice] = useState(false);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setVerifiedNotice(params.get("verificado") === "1");
-  }, []);
+  const verifiedNotice = useSyncExternalStore(
+    subscribeToNothing,
+    readVerifiedNotice,
+    () => false,
+  );
 
   async function onRegister(event: React.FormEvent) {
     event.preventDefault();

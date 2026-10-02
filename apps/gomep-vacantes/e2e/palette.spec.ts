@@ -10,7 +10,7 @@ async function tokenMatches(page: Page, name: string, expected: string) {
       const actual = getComputedStyle(document.documentElement)
         .getPropertyValue(name)
         .trim();
-      return (window as PaintedWindow).samePainted(actual, expected);
+      return (window as unknown as PaintedWindow).samePainted(actual, expected);
     },
     { name, expected },
   );
@@ -32,7 +32,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
       return Array.from(context.getImageData(0, 0, 1, 1).data).join(",");
     }
 
-    (window as PaintedWindow).samePainted = (actual, expected) => {
+    (window as unknown as PaintedWindow).samePainted = (actual, expected) => {
       const resolved = expected.startsWith("var(")
         ? (() => {
             const probe = document.createElement("div");
@@ -71,7 +71,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
   await expect
     .poll(() =>
       button.evaluate((el) =>
-        (window as PaintedWindow).samePainted(
+        (window as unknown as PaintedWindow).samePainted(
           getComputedStyle(el).backgroundColor,
           "var(--primary)",
         ),
@@ -81,7 +81,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
   await expect
     .poll(() =>
       button.evaluate((el) =>
-        (window as PaintedWindow).samePainted(
+        (window as unknown as PaintedWindow).samePainted(
           getComputedStyle(el).color,
           "var(--primary-foreground)",
         ),
@@ -96,7 +96,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
       brand.evaluate((el) => {
         const panel = el.closest(".bg-primary");
         return panel
-          ? (window as PaintedWindow).samePainted(
+          ? (window as unknown as PaintedWindow).samePainted(
               getComputedStyle(panel).backgroundColor,
               "var(--primary)",
             )
@@ -107,7 +107,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
   await expect
     .poll(() =>
       brand.evaluate((el) =>
-        (window as PaintedWindow).samePainted(
+        (window as unknown as PaintedWindow).samePainted(
           getComputedStyle(el).color,
           "var(--primary-foreground)",
         ),
@@ -119,7 +119,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
   await expect
     .poll(() =>
       name.evaluate((el) =>
-        (window as PaintedWindow).samePainted(
+        (window as unknown as PaintedWindow).samePainted(
           getComputedStyle(el).color,
           "var(--foreground)",
         ),
@@ -131,7 +131,7 @@ test("el home hereda el azul 255 en botón, panel, texto y anillo", async ({
   await expect
     .poll(() =>
       name.evaluate((el) =>
-        (window as PaintedWindow).samePainted(
+        (window as unknown as PaintedWindow).samePainted(
           getComputedStyle(el).borderTopColor,
           "var(--ring)",
         ),

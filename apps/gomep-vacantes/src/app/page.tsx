@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { readLocalAuthLink } from "@/app/actions";
+import { readLocalAuthLink, requestEmailAccess } from "@/app/actions";
 import { useAuth } from "@/lib/auth-context";
+import { EMAIL_ACCESS_COPY } from "@/lib/email-access";
 import { isLocalAuthDev } from "@/lib/local-auth-link";
 
 function localAuthDev() {
@@ -38,7 +39,7 @@ function DevAuthLink({
   error,
 }: {
   href: string | null;
-  testId: "dev-verify-link" | "dev-magic-link";
+  testId: "dev-verify-link" | "dev-magic-link" | "dev-login-verify-link";
   error: boolean;
 }) {
   if (href) {
@@ -78,7 +79,16 @@ export default function Home() {
   const [keepRegisterForm, setKeepRegisterForm] = useState(false);
   const [devVerifyLink, setDevVerifyLink] = useState<string | null>(null);
   const [devMagicLink, setDevMagicLink] = useState<string | null>(null);
-  const [devLinkError, setDevLinkError] = useState<"verify" | "signin" | null>(null);
+  const [devLoginVerifyLink, setDevLoginVerifyLink] = useState<string | null>(null);
+  const [devLinkError, setDevLinkError] = useState<
+    "verify" | "signin" | "login-verify" | null
+  >(null);
+  const [verifiedNotice, setVerifiedNotice] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setVerifiedNotice(params.get("verificado") === "1");
+  }, []);
 
   async function onRegister(event: React.FormEvent) {
     event.preventDefault();
@@ -119,15 +129,47 @@ export default function Home() {
   async function onMagicLink(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    setInfo("");
     setDevMagicLink(null);
-    if (devLinkError === "signin") setDevLinkError(null);
+    setDevLoginVerifyLink(null);
+    setDevLinkError(null);
     const local = localAuthDev();
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
+      setError(EMAIL_ACCESS_COPY.empty);
+      return;
+    }
     try {
-      await requestMagicLink(email);
-      setInfo("Revise su correo para el enlace de acceso.");
+      const access = await requestEmailAccess(trimmed);
+      if (access.kind === "error") {
+        setError(access.message);
+        return;
+      }
+      if (access.kind === "missing") {
+        setInfo(EMAIL_ACCESS_COPY.missing);
+        return;
+      }
+      if (access.kind === "verify") {
+        setInfo(EMAIL_ACCESS_COPY.verify);
+        if (!local) return;
+        if (access.href) {
+          setDevLoginVerifyLink(access.href);
+          return;
+        }
+        const result = await readLocalAuthLink(
+          trimmed,
+          "verify",
+          window.location.origin,
+        );
+        if (result?.href) setDevLoginVerifyLink(result.href);
+        else setDevLinkError("login-verify");
+        return;
+      }
+      await requestMagicLink(trimmed);
+      setInfo(EMAIL_ACCESS_COPY.magic);
       if (!local) return;
       const result = await readLocalAuthLink(
-        email.trim(),
+        trimmed,
         "signin",
         window.location.origin,
       );
@@ -305,12 +347,22 @@ export default function Home() {
                           testId="dev-magic-link"
                           error={devLinkError === "signin"}
                         />
+                        <DevAuthLink
+                          href={devLoginVerifyLink}
+                          testId="dev-login-verify-link"
+                          error={devLinkError === "login-verify"}
+                        />
                       </Field>
                     </FieldGroup>
                   </form>
                 </TabsContent>
               </Tabs>
             )}
+            {verifiedNotice ? (
+              <Alert data-testid="verified-email-notice">
+                <AlertDescription>{EMAIL_ACCESS_COPY.verifiedDone}</AlertDescription>
+              </Alert>
+            ) : null}
             {error ? (
               <Alert variant="destructive" data-testid="auth-error">
                 <AlertDescription>{error}</AlertDescription>

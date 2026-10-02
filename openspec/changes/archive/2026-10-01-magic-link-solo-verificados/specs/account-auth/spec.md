@@ -1,21 +1,6 @@
-# account-auth Specification
+# Spec Delta
 
-## Purpose
-
-Permitir que un docente cree una cuenta con correo y contraseña, demuestre que es dueño del correo y vuelva a entrar después.
-
-## Requirements
-
-### Requirement: El registro recoge los datos de identidad
-El sistema MUST crear una cuenta solo cuando la persona proporcione correo, contraseña, teléfono y nombre. El sistema MUST guardar esos cuatro valores en el perfil de la cuenta. El sistema MUST NOT ofrecer inicio de sesión con Google.
-
-#### Scenario: Registro completo
-- **WHEN** un visitante envía correo, contraseña, teléfono y nombre
-- **THEN** el sistema crea una cuenta con esos valores en el perfil y verificación de correo pendiente
-
-#### Scenario: Campo faltante
-- **WHEN** un visitante envía un registro sin correo, contraseña, teléfono o nombre
-- **THEN** el sistema rechaza crear la cuenta e indica qué campo falta
+## MODIFIED Requirements
 
 ### Requirement: El primer acceso exige un enlace de verificación por correo
 El sistema MUST enviar un enlace de verificación al correo del registro. Hasta confirmar ese enlace, el sistema MUST NOT permitir ver vacantes, crear suscripciones ni abrir la pantalla de admin. Confirmar el enlace MUST marcar el correo como verificado y MUST NOT iniciar sesión por sí solo. Si la persona ya tiene sesión al confirmarlo, el sistema MUST permitir la experiencia de docente. Si no tiene sesión, el sistema MUST indicar que el correo quedó verificado y que puede volver a Entrar a pedir el magic link, y MUST NOT mostrar vacantes, suscripciones ni pantallas de admin.
@@ -31,40 +16,6 @@ El sistema MUST enviar un enlace de verificación al correo del registro. Hasta 
 #### Scenario: El enlace de verificación sin sesión no entra a la app
 - **WHEN** una persona sin sesión abre un enlace de verificación válido
 - **THEN** el sistema marca el correo como verificado, indica que ya puede volver a Entrar a pedir el magic link, y no muestra vacantes, suscripciones ni pantallas de admin
-
-### Requirement: Los accesos posteriores usan magic link por correo o la contraseña del registro
-Tras verificar el correo, el sistema MUST permitir entrar pidiendo un magic link a ese correo o ingresando la contraseña del registro. Un magic link MUST iniciar sesión solo en la cuenta dueña de ese correo y solo mientras el enlace sea válido.
-
-#### Scenario: Inicio con magic link
-- **WHEN** una persona verificada pide un magic link y lo abre
-- **THEN** el sistema inicia sesión en esa cuenta
-
-#### Scenario: Inicio con contraseña
-- **WHEN** una persona verificada envía el correo y la contraseña del registro
-- **THEN** el sistema inicia sesión en esa cuenta
-
-#### Scenario: Magic link vencido o reutilizado
-- **WHEN** una persona abre un magic link vencido o ya usado
-- **THEN** el sistema rechaza el inicio de sesión y no crea sesión
-
-### Requirement: En local el enlace de verificación aparece bajo Crear cuenta
-Cuando la app corre en local —emulador de autenticación y host de loopback, como `localhost` o `127.0.0.1`— y un registro termina con éxito, el sistema MUST mostrar el enlace de verificación de ese correo justo debajo del botón «Crear cuenta», como enlace que se puede abrir. Ese enlace MUST ser el de la cuenta recién creada. El sistema MUST dejar el formulario de registro a la vista y MUST NOT ir a otra pantalla al crear la cuenta. Abrir ese enlace MUST verificar el correo. Si el enlace no se puede obtener, el sistema MUST indicarlo debajo del botón y MUST NOT mostrar un enlace de otra cuenta. Fuera de local, el sistema MUST NOT mostrar el enlace en la pantalla y, tras crear la cuenta, MUST llevar a la persona a la pantalla que indica que el correo sigue sin verificar.
-
-#### Scenario: Registro local muestra el enlace y se queda en el formulario
-- **WHEN** una persona en local envía correo, contraseña, teléfono y nombre y pulsa «Crear cuenta»
-- **THEN** el enlace de verificación de ese correo aparece debajo de «Crear cuenta» y el formulario de registro sigue a la vista
-
-#### Scenario: Abrir el enlace de verificación local confirma la cuenta
-- **WHEN** una persona en local abre el enlace mostrado debajo de «Crear cuenta»
-- **THEN** el sistema marca el correo como verificado y permite la experiencia de docente
-
-#### Scenario: El emulador no devuelve el enlace de verificación
-- **WHEN** una persona en local crea la cuenta y el enlace de verificación de ese correo no está disponible
-- **THEN** el sistema lo indica debajo de «Crear cuenta» y no muestra un enlace
-
-#### Scenario: Fuera de local el registro no muestra el enlace
-- **WHEN** una persona fuera de local envía un registro completo y pulsa «Crear cuenta»
-- **THEN** la pantalla no muestra el enlace de verificación y pasa a la pantalla de correo sin verificar
 
 ### Requirement: En local el magic link aparece bajo Enviar magic link
 Cuando la app corre en local y una cuenta con el correo verificado pide un magic link con éxito, el sistema MUST mostrar ese enlace justo debajo del botón «Enviar magic link», como enlace que se puede abrir. Ese enlace MUST ser el de la cuenta de ese correo. Abrirlo MUST iniciar sesión en esa cuenta mientras el enlace sea válido. Si la cuenta existe y el correo no está verificado, el sistema MUST mostrar ahí el enlace de verificación de ese correo, y MUST NOT mostrar un magic link. Si no hay cuenta, el sistema MUST NOT mostrar un enlace. Si el enlace que correspondía no se puede obtener, el sistema MUST indicarlo debajo del botón y MUST NOT mostrar un enlace de otra cuenta. Fuera de local, el sistema MUST NOT mostrar ningún enlace en la pantalla.
@@ -92,6 +43,8 @@ Cuando la app corre en local y una cuenta con el correo verificado pide un magic
 #### Scenario: Fuera de local el magic link no se muestra
 - **WHEN** una persona fuera de local pide un magic link
 - **THEN** la pantalla no muestra ningún enlace
+
+## ADDED Requirements
 
 ### Requirement: Enviar magic link solo para una cuenta verificada
 El sistema MUST generar y enviar un magic link solo cuando el correo pertenece a una cuenta cuyo correo ya está verificado. Si la cuenta existe y el correo no está verificado, el sistema MUST NOT generar un magic link, MUST generar y enviar un enlace de verificación a ese correo, y MUST indicar en la pantalla que primero hay que validar la cuenta. Si no hay cuenta para ese correo, el sistema MUST NOT generar ningún enlace y MUST indicar en la pantalla que hay que registrarse. Si el envío del enlace de verificación falla, el sistema MUST mostrar el error y MUST NOT indicar que el correo fue enviado.

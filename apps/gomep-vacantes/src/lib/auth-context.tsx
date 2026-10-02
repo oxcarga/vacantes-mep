@@ -43,7 +43,7 @@ type AuthContextValue = {
   signInWithPassword: (email: string, password: string) => Promise<User>;
   requestMagicLink: (email: string) => Promise<void>;
   completeEmailLink: (href: string) => Promise<"signin" | "none">;
-  verifyEmailCode: (code: string) => Promise<void>;
+  verifyEmailCode: (code: string) => Promise<boolean>;
   signOutUser: () => Promise<void>;
   refreshRole: () => Promise<void>;
 };
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return credential.user;
       },
       async requestMagicLink(email) {
-        const trimmed = email.trim();
+        const trimmed = email.trim().toLowerCase();
         if (!trimmed) {
           throw new Error("Ingrese su correo.");
         }
@@ -195,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = auth.currentUser;
         setUser(current);
         await loadClaims(current);
+        return Boolean(current);
       },
       async signOutUser() {
         await signOut(getClientAuth());

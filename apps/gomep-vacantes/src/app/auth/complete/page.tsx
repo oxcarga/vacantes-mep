@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/app-shell";
 
 export default function AuthCompletePage() {
-  const { completeEmailLink, verifyEmailCode, user, verified } = useAuth();
+  const { completeEmailLink, verifyEmailCode, user, verified, loading } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
+  const [accepted, setAccepted] = useState(false);
+  const ran = useRef(false);
 
   useEffect(() => {
+    if (loading || ran.current) return;
+    ran.current = true;
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
     const oobCode = params.get("oobCode");
@@ -18,14 +22,17 @@ export default function AuthCompletePage() {
     async function run() {
       try {
         if (mode === "verifyEmail" && oobCode) {
-          await verifyEmailCode(oobCode);
+          const signedIn = await verifyEmailCode(oobCode);
+          if (!signedIn) {
+            router.replace("/?verificado=1");
+            return;
+          }
+          setAccepted(true);
           return;
         }
         if (mode === "signIn" || !mode) {
           const result = await completeEmailLink(window.location.href);
-          if (result === "signin") {
-            return;
-          }
+          if (result === "signin") setAccepted(true);
         }
       } catch (err) {
         setError(
@@ -36,11 +43,11 @@ export default function AuthCompletePage() {
       }
     }
     void run();
-  }, [completeEmailLink, verifyEmailCode, router]);
+  }, [completeEmailLink, verifyEmailCode, router, loading]);
 
   useEffect(() => {
-    if (user && verified) router.replace("/vacantes");
-  }, [user, verified, router]);
+    if (accepted && user && verified) router.replace("/vacantes");
+  }, [accepted, user, verified, router]);
 
   return (
     <AppShell title="Completando acceso">

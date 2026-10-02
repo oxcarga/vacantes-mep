@@ -1,7 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/admin-app";
 import { ensureUserProfileRecord } from "@/lib/account-service";
+import { decideEmailAccess } from "@/lib/email-access";
+import { sendResendMail } from "@/lib/resend-mail";
 import {
   latestOobCode,
   resolveLocalAuthLink,
@@ -104,6 +107,19 @@ async function pollOobCodes(
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+}
+
+export async function requestEmailAccess(email: string) {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "localhost:3000";
+  const proto = headerList.get("x-forwarded-proto") ?? "http";
+  return decideEmailAccess({
+    email,
+    origin: `${proto}://${host}`,
+    local: process.env.NEXT_PUBLIC_USE_EMULATORS === "1",
+    auth: adminAuth(),
+    sendMail: (payload) => sendResendMail(payload),
+  });
 }
 
 export async function readLocalAuthLink(

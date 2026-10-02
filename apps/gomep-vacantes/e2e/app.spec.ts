@@ -123,6 +123,75 @@ test("3.1 el magic link local se muestra bajo el botón y abre la sesión", asyn
   await expect(page.getByTestId("session-role")).toHaveText("docente");
 });
 
+async function logoutIfNeeded(page: Page) {
+  await page.goto("/");
+  await expect(page.getByText("Cargando…")).toHaveCount(0);
+  const logout = page.getByRole("button", { name: "Cerrar sesión" });
+  if (await logout.isVisible()) {
+    await logout.click();
+    await expect(page.getByRole("tab", { name: "Entrar" })).toBeVisible();
+  }
+}
+
+test("2.2 un correo sin cuenta no recibe enlace", async ({ page }) => {
+  await logoutIfNeeded(page);
+  await page.getByRole("tab", { name: "Entrar" }).click();
+  await page
+    .getByTestId("login-form")
+    .locator('input[name="email"]')
+    .fill(`nadie.${Date.now()}@example.com`);
+  await page.getByRole("button", { name: "Enviar magic link" }).click();
+  await expect(page.getByTestId("auth-info")).toContainText(
+    "No hay una cuenta con ese correo",
+  );
+  await expect(page.getByTestId("dev-magic-link")).toHaveCount(0);
+  await expect(page.getByTestId("dev-login-verify-link")).toHaveCount(0);
+});
+
+test("2.3 una cuenta sin verificar muestra el enlace de verificación", async ({
+  page,
+}) => {
+  const email = `sinverificar.${Date.now()}@example.com`;
+  await page.goto("/");
+  await page.locator('input[name="name"]').fill("Nela");
+  await page.locator('input[name="phone"]').fill("8888-4444");
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').fill("password12");
+  await page.getByRole("button", { name: "Crear cuenta" }).click();
+  await expect(page.getByTestId("dev-verify-link")).toBeVisible();
+  await logoutIfNeeded(page);
+  await page.getByRole("tab", { name: "Entrar" }).click();
+  await page.getByTestId("login-form").locator('input[name="email"]').fill(email);
+  await page.getByRole("button", { name: "Enviar magic link" }).click();
+  await expect(page.getByTestId("auth-info")).toContainText("Primero valide su cuenta");
+  const link = page.getByTestId("dev-login-verify-link");
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", /mode=verifyEmail/);
+  await expect(page.getByTestId("dev-magic-link")).toHaveCount(0);
+});
+
+test("3.1 la verificación sin sesión no abre la app", async ({ page }) => {
+  const email = `sinsesion.${Date.now()}@example.com`;
+  await page.goto("/");
+  await page.locator('input[name="name"]').fill("Lina");
+  await page.locator('input[name="phone"]').fill("8888-5555");
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').fill("password12");
+  await page.getByRole("button", { name: "Crear cuenta" }).click();
+  await expect(page.getByTestId("dev-verify-link")).toBeVisible();
+  await logoutIfNeeded(page);
+  await page.getByRole("tab", { name: "Entrar" }).click();
+  await page.getByTestId("login-form").locator('input[name="email"]').fill(email);
+  await page.getByRole("button", { name: "Enviar magic link" }).click();
+  const href = await page.getByTestId("dev-login-verify-link").getAttribute("href");
+  await page.goto(href ?? "");
+  await expect(page.getByTestId("verified-email-notice")).toContainText(
+    "Su correo quedó verificado",
+  );
+  await expect(page.getByTestId("app-nav")).toHaveCount(0);
+  await expect(page.getByTestId("vacantes-list")).toHaveCount(0);
+});
+
 const firstSeenFormat = new Intl.DateTimeFormat("es-CR", {
   timeZone: "America/Costa_Rica",
   day: "numeric",

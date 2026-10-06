@@ -9,12 +9,12 @@
   "scripts": {
     "start": "npm run dev -w gomep-vacantes",
     "test": "npm test -w gomep-vacantes",
+    "test:e2e": "firebase emulators:exec --config firebase.e2e.json --only auth,firestore --project demo-gomep-vacantes \"npm run test:e2e -w gomep-vacantes\"",
     "scrape": "npm run scrape -w gomep-vacantes-scrapper",
     "test:scrapper": "npm test -w gomep-vacantes-scrapper",
     "test:rules": "node --test test/firestore.rules.test.js",
     "typecheck:schema": "npm run typecheck -w @gomep/schema",
     "test:firestore": "firebase emulators:exec --config firebase.e2e.json --only auth,firestore --project demo-gomep-vacantes \"npm run test:rules && npm test -w gomep-vacantes-scrapper\"",
-    "test:e2e": "firebase emulators:exec --config firebase.e2e.json --only auth,firestore --project demo-gomep-vacantes \"npm run test:e2e -w gomep-vacantes\"",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-gomep-vacantes",
     "emulators:import": "firebase emulators:start --only auth,firestore --import=./backups/emulator-data --project demo-gomep-vacantes",
     "emulators:export": "firebase emulators:export --only auth,firestore ./backups/emulator-data --project demo-gomep-vacantes"

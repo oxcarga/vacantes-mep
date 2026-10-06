@@ -3,10 +3,11 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import type { Page } from "@playwright/test";
 import { COLLECTIONS } from "@gomep/schema";
+import { authEmulatorHost, firestoreEmulatorHost } from "./emulator-hosts";
 
 const PROJECT = "demo-gomep-vacantes";
-process.env.FIRESTORE_EMULATOR_HOST ||= "127.0.0.1:8080";
-process.env.FIREBASE_AUTH_EMULATOR_HOST ||= "127.0.0.1:9099";
+process.env.FIRESTORE_EMULATOR_HOST = firestoreEmulatorHost;
+process.env.FIREBASE_AUTH_EMULATOR_HOST = authEmulatorHost;
 const AUTH = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`;
 
 export function adminSdk() {
@@ -58,8 +59,13 @@ export async function seedVerifiedUser(options: {
 }
 
 export async function seedCatalogsAndVacancies() {
+  if (process.env.FIRESTORE_EMULATOR_HOST !== firestoreEmulatorHost) {
+    throw new Error(
+      `seedCatalogsAndVacancies escribe en ${process.env.FIRESTORE_EMULATOR_HOST}, no en el emulador e2e ${firestoreEmulatorHost}.`,
+    );
+  }
   const { db } = adminSdk();
-  await db.collection(COLLECTIONS.regionales).doc("57").set({
+  await db.collection(COLLECTIONS.regionales).doc("53").set({
     label: "Regional Educación Perez Zeledon",
     lastSeen: new Date().toISOString(),
   });
@@ -67,7 +73,7 @@ export async function seedCatalogsAndVacancies() {
     name: "Español",
     lastSeen: new Date().toISOString(),
   });
-  await db.collection(COLLECTIONS.regionales).doc("78").set({
+  await db.collection(COLLECTIONS.regionales).doc("62").set({
     label: "Regional Educación Santa Cruz",
     lastSeen: new Date().toISOString(),
   });
@@ -81,7 +87,7 @@ export async function seedCatalogsAndVacancies() {
   });
   await db.collection(COLLECTIONS.vacantes).doc("1001").set({
     regional: "Regional Educación Perez Zeledon",
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
     summary: "1001 | Español",
     fields: { Vacante: "1001", Especialidad: "Español", Institución: "Liceo" },
@@ -91,7 +97,7 @@ export async function seedCatalogsAndVacancies() {
   });
   await db.collection(COLLECTIONS.vacantes).doc("1002").set({
     regional: "Regional Educación Perez Zeledon",
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
     summary: "1002 | Español",
     fields: { Vacante: "1002", Especialidad: "Español", Institución: "Escuela" },
@@ -101,7 +107,7 @@ export async function seedCatalogsAndVacancies() {
   });
   await db.collection(COLLECTIONS.vacantes).doc("1003").set({
     regional: "Etiqueta vieja",
-    regionalValue: "78",
+    regionalValue: "62",
     especialidad: "Inglés",
     summary: "1003 | Inglés",
     fields: {
@@ -118,7 +124,7 @@ export async function seedCatalogsAndVacancies() {
   });
   await db.collection(COLLECTIONS.vacantes).doc("1004").set({
     regional: "Regional Educación Perez Zeledon",
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
     summary: "1004 | Español",
     fields: { Vacante: "1004", Especialidad: "Español" },

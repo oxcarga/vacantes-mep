@@ -89,9 +89,9 @@ const filtroTones = {
     pill: "bg-primary/10 text-primary",
     quitar: "hover:bg-primary/15",
   },
-  "chart-5": {
-    pill: "bg-chart-5/10 text-chart-5",
-    quitar: "hover:bg-chart-5/15",
+  green: {
+    pill: "bg-green-200 text-green-900 dark:bg-green-950 dark:text-green-200",
+    quitar: "hover:bg-green-300 dark:hover:bg-green-900",
   },
 } as const;
 
@@ -447,7 +447,7 @@ export default function VacantesPage() {
               <FiltroActivo
                 testId="vacantes-filtro-especialidad"
                 label={especialidad}
-                tone="chart-5"
+                tone="green"
                 onQuitar={() => setEspecialidad("")}
               />
             ) : null}

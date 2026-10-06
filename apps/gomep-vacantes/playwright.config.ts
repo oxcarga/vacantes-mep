@@ -1,9 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { authEmulatorHost, firestoreEmulatorHost } from "./e2e/emulator-hosts";
 
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
-const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080";
-const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -33,10 +32,10 @@ export default defineConfig({
       NEXT_PUBLIC_FIREBASE_APP_ID: "1:0:web:e2e",
       GCLOUD_PROJECT: "demo-gomep-vacantes",
       GOOGLE_CLOUD_PROJECT: "demo-gomep-vacantes",
-      FIRESTORE_EMULATOR_HOST: firestoreHost,
-      FIREBASE_AUTH_EMULATOR_HOST: authHost,
-      NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST: firestoreHost,
-      NEXT_PUBLIC_AUTH_EMULATOR_HOST: authHost,
+      FIRESTORE_EMULATOR_HOST: firestoreEmulatorHost,
+      FIREBASE_AUTH_EMULATOR_HOST: authEmulatorHost,
+      NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST: firestoreEmulatorHost,
+      NEXT_PUBLIC_AUTH_EMULATOR_HOST: authEmulatorHost,
     },
   },
 });

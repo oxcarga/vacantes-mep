@@ -42,7 +42,7 @@ test.beforeAll(async () => {
   const { db } = adminSdk();
   await db.collection(COLLECTIONS.suscripciones).add({
     uid,
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
     status: "inactive",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -285,7 +285,7 @@ test("6.5 los filtros de regional y especialidad recortan la lista", async ({ pa
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
 
-  await elegirRegional(page, "57");
+  await elegirRegional(page, "53");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await expect(page.getByTestId("vacante-1004")).toBeVisible();
   await expect(page.getByTestId("vacante-1003")).toHaveCount(0);
@@ -295,7 +295,7 @@ test("6.5 los filtros de regional y especialidad recortan la lista", async ({ pa
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
 
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
   await expect(page.getByTestId("vacantes-count")).toHaveText("1");
 
@@ -309,7 +309,7 @@ test("6.5 los filtros de regional y especialidad recortan la lista", async ({ pa
 test("6.6 el filtro sin coincidencias no usa el mensaje de lista vacía", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await page.getByTestId("vacantes-especialidad").selectOption("Español");
   await expect(page.getByTestId("vacantes-empty-filter")).toHaveText(
     "No hay vacantes abiertas de Español en Regional Educación Santa Cruz.",
@@ -330,7 +330,7 @@ test("6.6 el filtro sin coincidencias no usa el mensaje de lista vacía", async 
 test("6.2 agregar, quitar y ver el par en historial", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await page.getByTestId("nav-suscripciones").click();
-  await page.getByTestId("subscribe-regional").selectOption("57");
+  await page.getByTestId("subscribe-regional").selectOption("53");
   await page.getByTestId("subscribe-especialidad").selectOption("Español");
   await page.getByRole("button", { name: "Agregar", exact: true }).click();
   const active = page.locator("[data-testid^='sub-active-']");
@@ -434,7 +434,7 @@ test("9.3 el conteo se lee como frase en singular o plural", async ({ page }) =>
   await expect(page.getByTestId("vacantes-count")).toHaveText("3");
 
   await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await expect(frase).toHaveText("1 vacante");
   await expect(page.getByTestId("vacantes-count")).toHaveText("1");
 });
@@ -455,14 +455,14 @@ test("9.4 la especialidad sigue siendo un select y la regional un botón", async
 test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
-  const chipRegional = page.getByTestId("vacantes-filtro-regional-78");
+  const chipRegional = page.getByTestId("vacantes-filtro-regional-62");
   const chipEspecialidad = page.getByTestId("vacantes-filtro-especialidad");
   const limpiar = page.getByTestId("vacantes-limpiar");
   await expect(chipRegional).toHaveCount(0);
   await expect(chipEspecialidad).toHaveCount(0);
   await expect(limpiar).toHaveCount(0);
 
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
   await expect(chipRegional).toHaveText("Regional Educación Santa Cruz");
   await expect(chipEspecialidad).toHaveText("Inglés");
@@ -478,7 +478,7 @@ test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ pa
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
 
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await limpiar.click();
   await expect(page.getByTestId("vacantes-regional")).toHaveText("Todas las regionales");
   await expect(page.getByTestId("vacantes-especialidad")).toHaveValue("");
@@ -491,7 +491,7 @@ test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ pa
 test("9.6 el filtro sin coincidencias ofrece limpiar filtros", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await page.getByTestId("vacantes-especialidad").selectOption("Español");
   const limpiar = page.getByTestId("vacantes-empty-filter-limpiar");
   await expect(limpiar).toBeVisible();
@@ -510,14 +510,14 @@ test("9.13 el dropdown de regionales acepta varias y se cierra con Escape", asyn
   const lista = page.getByTestId("vacantes-regional-lista");
   await expect(regional).toHaveText("Todas las regionales");
 
-  await elegirRegional(page, "57");
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "53");
+  await elegirRegional(page, "62");
   await expect(lista).toBeVisible();
-  await expect(page.getByTestId("vacantes-regional-opcion-57")).toHaveAttribute(
+  await expect(page.getByTestId("vacantes-regional-opcion-53")).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(page.getByTestId("vacantes-regional-opcion-78")).toHaveAttribute(
+  await expect(page.getByTestId("vacantes-regional-opcion-62")).toHaveAttribute(
     "aria-selected",
     "true",
   );
@@ -526,7 +526,7 @@ test("9.13 el dropdown de regionales acepta varias y se cierra con Escape", asyn
   await expect(page.getByTestId("vacante-1004")).toBeVisible();
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
 
-  await page.getByTestId("vacantes-regional-opcion-78").click();
+  await page.getByTestId("vacantes-regional-opcion-62").click();
   await expect(regional).toHaveText("Regional Educación Perez Zeledon");
   await expect(page.getByTestId("vacante-1003")).toHaveCount(0);
 
@@ -555,8 +555,8 @@ test("9.14 cada regional elegida es una píldora y la X la desmarca", async ({ p
   await expect(page.locator("[data-testid^='vacantes-filtro-']")).toHaveCount(0);
   await expect(page.getByTestId("vacantes-limpiar")).toHaveCount(0);
 
-  await elegirRegional(page, "78");
-  await elegirRegional(page, "57");
+  await elegirRegional(page, "62");
+  await elegirRegional(page, "53");
   const pills = page.locator("[data-testid^='vacantes-filtro-regional-']");
   await expect(pills).toHaveCount(2);
   await expect(pills.nth(0)).toHaveText("Regional Educación Perez Zeledon");
@@ -566,14 +566,14 @@ test("9.14 cada regional elegida es una píldora y la X la desmarca", async ({ p
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Quitar filtro: Regional Educación Perez Zeledon" }).click();
   await page.getByTestId("vacantes-regional").click();
-  await expect(page.getByTestId("vacantes-regional-opcion-57")).toHaveAttribute(
+  await expect(page.getByTestId("vacantes-regional-opcion-53")).toHaveAttribute(
     "aria-selected",
     "false",
   );
-  await expect(page.getByTestId("vacantes-filtro-regional-78")).toHaveText(
+  await expect(page.getByTestId("vacantes-filtro-regional-62")).toHaveText(
     "Regional Educación Santa Cruz",
   );
-  await expect(page.getByTestId("vacantes-filtro-regional-57")).toHaveCount(0);
+  await expect(page.getByTestId("vacantes-filtro-regional-53")).toHaveCount(0);
   await expect(page.getByTestId("vacantes-regional")).toHaveText(
     "Regional Educación Santa Cruz",
   );
@@ -583,23 +583,23 @@ test("9.14 cada regional elegida es una píldora y la X la desmarca", async ({ p
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
 });
 
-test("9.15 la píldora de especialidad usa chart-5 y la de regional primary", async ({
+test("9.15 la píldora de especialidad usa verde claro y la de regional primary", async ({
   page,
 }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
-  await elegirRegional(page, "57");
+  await elegirRegional(page, "53");
   await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
-  await expect(page.getByTestId("vacantes-filtro-regional-57")).toHaveClass(/bg-primary\/10/);
-  await expect(page.getByTestId("vacantes-filtro-regional-57")).toHaveClass(/text-primary/);
-  await expect(page.getByTestId("vacantes-filtro-especialidad")).toHaveClass(/bg-chart-5\/10/);
-  await expect(page.getByTestId("vacantes-filtro-especialidad")).toHaveClass(/text-chart-5/);
+  await expect(page.getByTestId("vacantes-filtro-regional-53")).toHaveClass(/bg-primary\/10/);
+  await expect(page.getByTestId("vacantes-filtro-regional-53")).toHaveClass(/text-primary/);
+  await expect(page.getByTestId("vacantes-filtro-especialidad")).toHaveClass(/bg-green-200/);
+  await expect(page.getByTestId("vacantes-filtro-especialidad")).toHaveClass(/text-green-900/);
 });
 
 test("9.16 dos regionales sin coincidencias nombran ambas unidas por o", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "62");
   await elegirRegional(page, "99");
   await page.getByTestId("vacantes-especialidad").selectOption("Español");
   await expect(page.getByTestId("vacantes-empty-filter")).toHaveText(
@@ -612,8 +612,8 @@ test("9.17 el listbox cabe en la pantalla y las píldoras pasan de línea", asyn
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 800 });
-  await elegirRegional(page, "57");
-  await elegirRegional(page, "78");
+  await elegirRegional(page, "53");
+  await elegirRegional(page, "62");
   const pills = page.locator("[data-testid^='vacantes-filtro-regional-']");
   const first = await pills.nth(0).boundingBox();
   const second = await pills.nth(1).boundingBox();
@@ -717,7 +717,7 @@ test("10.1 el panel ordena las regionales y conserva los selects", async ({ page
 
 test("10.2 la ficha activa muestra la etiqueta y la fecha de Costa Rica", async ({ page }) => {
   const uid = await docenteUid();
-  const catalogo = "e2e-sub-activa-57";
+  const catalogo = "e2e-sub-activa-53";
   const ausente = "e2e-sub-activa-00";
   const base = {
     uid,
@@ -730,7 +730,7 @@ test("10.2 la ficha activa muestra la etiqueta y la fecha de Costa Rica", async 
   };
   await suscripcionesRef().doc(catalogo).set({
     ...base,
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
   });
   await suscripcionesRef().doc(ausente).set({
@@ -745,7 +745,7 @@ test("10.2 la ficha activa muestra la etiqueta y la fecha de Costa Rica", async 
     await expect(conocida).toContainText("Español");
     await expect(conocida).toContainText("Regional Educación Perez Zeledon");
     await expect(conocida).toContainText("Vence el 30 ene 2026");
-    await expect(conocida).not.toContainText("57");
+    await expect(conocida).not.toContainText("53");
     await expect(conocida.getByRole("button", { name: "Quitar" })).toBeVisible();
     await expect(page.getByTestId(`sub-active-${ausente}`)).toContainText("00");
   } finally {
@@ -769,7 +769,7 @@ test("10.3 el conteo distingue singular y la más reciente va primero", async ({
   };
   await suscripcionesRef().doc(reciente).set({
     ...base,
-    regionalValue: "78",
+    regionalValue: "62",
     especialidad: "Inglés",
     createdAt: "2026-03-02T00:00:00.000Z",
   });
@@ -802,7 +802,7 @@ test("10.4 el historial dice el motivo en español", async ({ page }) => {
   const quitada = "e2e-sub-quitada";
   await suscripcionesRef().doc(quitada).set({
     uid,
-    regionalValue: "78",
+    regionalValue: "62",
     especialidad: "Ciencias",
     status: "inactive",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -837,13 +837,13 @@ test("10.5 agregar de nuevo usa el par de la ficha", async ({ page }) => {
     await openSuscripciones(page);
     const reabrir = page.getByTestId(`resubscribe-${expiredId}`);
     await expect(reabrir).toBeVisible();
-    await page.getByTestId("subscribe-regional").selectOption("57");
+    await page.getByTestId("subscribe-regional").selectOption("53");
     await page.getByTestId("subscribe-especialidad").selectOption("Español");
     await page.getByRole("button", { name: "Agregar", exact: true }).click();
     await expect(reabrir).toHaveCount(0);
     await page.getByRole("button", { name: "Quitar" }).click();
     await expect(reabrir).toBeVisible();
-    await page.getByTestId("subscribe-regional").selectOption("78");
+    await page.getByTestId("subscribe-regional").selectOption("62");
     await page.getByTestId("subscribe-especialidad").selectOption("Inglés");
     await reabrir.click();
     const nueva = page.getByTestId("subs-active").locator("[data-testid^='sub-active-']");
@@ -901,7 +901,6 @@ test("10.7 los vacíos de activas e historial son distintos", async ({ page }) =
   await expect(page.getByTestId("subs-empty-history")).toHaveText("Todavía no hay historial.");
 });
 
-
 test("10.8 el historial se apila en filas", async ({ page }) => {
   const uid = await docenteUid();
   const owned = await suscripcionesRef().where("uid", "==", uid).get();
@@ -911,7 +910,7 @@ test("10.8 el historial se apila en filas", async ({ page }) => {
   const activa = "e2e-sub-fila-activa";
   await suscripcionesRef().doc(quitada).set({
     uid,
-    regionalValue: "78",
+    regionalValue: "62",
     especialidad: "Ciencias",
     status: "inactive",
     createdAt: "2026-02-01T00:00:00.000Z",
@@ -922,7 +921,7 @@ test("10.8 el historial se apila en filas", async ({ page }) => {
   });
   await suscripcionesRef().doc(vencida).set({
     uid,
-    regionalValue: "57",
+    regionalValue: "53",
     especialidad: "Español",
     status: "inactive",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -964,7 +963,7 @@ test("10.8 el historial se apila en filas", async ({ page }) => {
     await suscripcionesRef().doc(activa).delete();
     await suscripcionesRef().add({
       uid,
-      regionalValue: "57",
+      regionalValue: "53",
       especialidad: "Español",
       status: "inactive",
       createdAt: "2026-01-01T00:00:00.000Z",

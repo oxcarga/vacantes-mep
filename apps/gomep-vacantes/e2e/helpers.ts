@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import type { Page } from "@playwright/test";
 import { COLLECTIONS } from "@gomep/schema";
 
 const PROJECT = "demo-gomep-vacantes";
@@ -151,4 +152,22 @@ export async function waitForOob(email: string, requestType: string) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`No oob for ${email} ${requestType}`);
+}
+
+async function abrirRegionales(page: Page) {
+  const lista = page.getByTestId("vacantes-regional-lista");
+  if (!(await lista.isVisible())) {
+    await page.getByTestId("vacantes-regional").click();
+    await lista.waitFor({ state: "visible" });
+  }
+}
+
+export async function elegirRegional(page: Page, id: string) {
+  await abrirRegionales(page);
+  await page.getByTestId(`vacantes-regional-opcion-${id}`).click();
+}
+
+export async function todasLasRegionales(page: Page) {
+  await abrirRegionales(page);
+  await page.getByTestId("vacantes-regional-todas").click();
 }

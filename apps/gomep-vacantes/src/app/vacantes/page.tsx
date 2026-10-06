@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
@@ -9,6 +9,7 @@ import {
   Briefcase,
   Building2,
   CalendarDays,
+  Check,
   ChevronDown,
   ExternalLink,
   GraduationCap,
@@ -72,26 +73,51 @@ function compareVacantes(a: Vacante, b: Vacante) {
   return b.id.localeCompare(a.id);
 }
 
+function fraseRegionales(etiquetas: string[]) {
+  if (etiquetas.length === 0) return "";
+  if (etiquetas.length === 1) return `en ${etiquetas[0]}`;
+  if (etiquetas.length === 2) return `en ${etiquetas[0]} o en ${etiquetas[1]}`;
+  const iniciales = etiquetas
+    .slice(0, -1)
+    .map((etiqueta) => `en ${etiqueta}`)
+    .join(", ");
+  return `${iniciales} o en ${etiquetas[etiquetas.length - 1]}`;
+}
+
+const filtroTones = {
+  primary: {
+    pill: "bg-primary/10 text-primary",
+    quitar: "hover:bg-primary/15",
+  },
+  "chart-5": {
+    pill: "bg-chart-5/10 text-chart-5",
+    quitar: "hover:bg-chart-5/15",
+  },
+} as const;
+
 function FiltroActivo({
   testId,
   label,
+  tone,
   onQuitar,
 }: {
   testId: string;
   label: string;
+  tone: keyof typeof filtroTones;
   onQuitar: () => void;
 }) {
+  const colors = filtroTones[tone];
   return (
     <span
       data-testid={testId}
-      className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pr-1 pl-3 text-xs font-medium text-primary"
+      className={`inline-flex items-center gap-1 rounded-full py-1 pr-1 pl-3 text-xs font-medium ${colors.pill}`}
     >
       {label}
       <button
         type="button"
         aria-label={`Quitar filtro: ${label}`}
         onClick={onQuitar}
-        className="inline-flex size-5 items-center justify-center rounded-full outline-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/50"
+        className={`inline-flex size-5 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${colors.quitar}`}
       >
         <X aria-hidden className="size-3.5" />
       </button>
@@ -151,9 +177,11 @@ export default function VacantesPage() {
   const [especialidades, setEspecialidades] = useState<CatalogEspecialidad[]>([]);
   const [vacantesListas, setVacantesListas] = useState(false);
   const [regionalesListas, setRegionalesListas] = useState(false);
-  const [regionalValue, setRegionalValue] = useState("");
+  const [regionalValues, setRegionalValues] = useState<string[]>([]);
+  const [regionalAbierta, setRegionalAbierta] = useState(false);
   const [especialidad, setEspecialidad] = useState("");
   const [error, setError] = useState("");
+  const regionalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -215,33 +243,75 @@ export default function VacantesPage() {
     };
   }, [user, verified, role]);
 
+  useEffect(() => {
+    if (!regionalAbierta) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!regionalRef.current?.contains(event.target as Node)) {
+        setRegionalAbierta(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setRegionalAbierta(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [regionalAbierta]);
+
   const labelByValue = useMemo(
     () => new Map(regionales.map((row) => [row.id, row.label])),
     [regionales],
   );
 
+  const elegidas = useMemo(() => new Set(regionalValues), [regionalValues]);
+  const regionalesElegidas = useMemo(
+    () => regionales.filter((row) => elegidas.has(row.id)),
+    [regionales, elegidas],
+  );
+
   const visible = useMemo(() => {
     return rows
-      .filter((row) => !regionalValue || row.regionalValue === regionalValue)
+      .filter((row) => elegidas.size === 0 || elegidas.has(row.regionalValue ?? ""))
       .filter((row) => !especialidad || row.especialidad === especialidad)
       .sort(compareVacantes);
-  }, [rows, regionalValue, especialidad]);
+  }, [rows, elegidas, especialidad]);
 
   const cargando = !vacantesListas || !regionalesListas;
-  const selectedRegionalLabel = regionalValue ? (labelByValue.get(regionalValue) ?? "") : "";
-  const hayFiltros = Boolean(regionalValue || especialidad);
+  const regionalCerrada =
+    regionalesElegidas.length === 0
+      ? "Todas las regionales"
+      : regionalesElegidas.length === 1
+        ? regionalesElegidas[0].label
+        : `${regionalesElegidas.length} regionales`;
+  const hayFiltros = regionalesElegidas.length > 0 || Boolean(especialidad);
 
-  function limpiarFiltros() {
-    setRegionalValue("");
-    setEspecialidad("");
+  function toggleRegional(id: string) {
+    setRegionalValues((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
+    );
   }
 
+  function limpiarRegionales() {
+    setRegionalValues([]);
+    setRegionalAbierta(false);
+  }
+
+  function limpiarFiltros() {
+    setRegionalValues([]);
+    setEspecialidad("");
+    setRegionalAbierta(false);
+  }
+
+  const donde = fraseRegionales(regionalesElegidas.map((row) => row.label));
   let filterEmpty = "";
   if (rows.length > 0 && visible.length === 0) {
-    if (regionalValue && especialidad) {
-      filterEmpty = `No hay vacantes abiertas de ${especialidad} en ${selectedRegionalLabel}.`;
-    } else if (regionalValue) {
-      filterEmpty = `No hay vacantes abiertas en ${selectedRegionalLabel}.`;
+    if (especialidad && donde) {
+      filterEmpty = `No hay vacantes abiertas de ${especialidad} ${donde}.`;
+    } else if (donde) {
+      filterEmpty = `No hay vacantes abiertas ${donde}.`;
     } else if (especialidad) {
       filterEmpty = `No hay vacantes abiertas de ${especialidad}.`;
     }
@@ -261,31 +331,78 @@ export default function VacantesPage() {
         className="flex flex-col gap-4 rounded-xl border bg-muted/50 p-4"
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <Label className={fieldClass}>
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin aria-hidden className="size-4 text-muted-foreground" />
-              Regional
-            </span>
-            <span className="relative">
-              <select
-                className={selectClass}
-                value={regionalValue}
-                onChange={(event) => setRegionalValue(event.target.value)}
-                data-testid="vacantes-regional"
+          <div className="relative" ref={regionalRef}>
+            <Label className={fieldClass}>
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin aria-hidden className="size-4 text-muted-foreground" />
+                Regional
+              </span>
+              <span className="relative">
+                <button
+                  type="button"
+                  className={`${selectClass} text-left`}
+                  data-testid="vacantes-regional"
+                  aria-haspopup="listbox"
+                  aria-expanded={regionalAbierta}
+                  aria-controls="vacantes-regional-lista"
+                  onClick={() => setRegionalAbierta((open) => !open)}
+                >
+                  <span className="block truncate">{regionalCerrada}</span>
+                </button>
+                <ChevronDown
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+              </span>
+            </Label>
+            {regionalAbierta ? (
+              <ul
+                id="vacantes-regional-lista"
+                data-testid="vacantes-regional-lista"
+                role="listbox"
+                aria-multiselectable="true"
+                className="absolute top-full right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md"
               >
-                <option value="">Todas las regionales</option>
-                {regionales.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </span>
-          </Label>
+                <li>
+                  <button
+                    type="button"
+                    role="option"
+                    data-testid="vacantes-regional-todas"
+                    aria-selected={regionalesElegidas.length === 0}
+                    onClick={limpiarRegionales}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {regionalesElegidas.length === 0 ? (
+                        <Check aria-hidden className="size-4" />
+                      ) : null}
+                    </span>
+                    Todas las regionales
+                  </button>
+                </li>
+                {regionales.map((row) => {
+                  const elegida = elegidas.has(row.id);
+                  return (
+                    <li key={row.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        data-testid={`vacantes-regional-opcion-${row.id}`}
+                        aria-selected={elegida}
+                        onClick={() => toggleRegional(row.id)}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 ${elegida ? "bg-muted" : ""}`}
+                      >
+                        <span className="flex size-4 shrink-0 items-center justify-center">
+                          {elegida ? <Check aria-hidden className="size-4" /> : null}
+                        </span>
+                        {row.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
           <Label className={fieldClass}>
             <span className="inline-flex items-center gap-1.5">
               <GraduationCap aria-hidden className="size-4 text-muted-foreground" />
@@ -315,17 +432,22 @@ export default function VacantesPage() {
         {hayFiltros ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Filtros:</span>
-            {regionalValue ? (
+            {regionalesElegidas.map((row) => (
               <FiltroActivo
-                testId="vacantes-filtro-regional"
-                label={selectedRegionalLabel || regionalValue}
-                onQuitar={() => setRegionalValue("")}
+                key={row.id}
+                testId={`vacantes-filtro-regional-${row.id}`}
+                label={row.label}
+                tone="primary"
+                onQuitar={() =>
+                  setRegionalValues((prev) => prev.filter((value) => value !== row.id))
+                }
               />
-            ) : null}
+            ))}
             {especialidad ? (
               <FiltroActivo
                 testId="vacantes-filtro-especialidad"
                 label={especialidad}
+                tone="chart-5"
                 onQuitar={() => setEspecialidad("")}
               />
             ) : null}

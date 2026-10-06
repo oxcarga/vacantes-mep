@@ -61,9 +61,11 @@ Al abrir el directorio, el docente MUST ver todas las vacantes abiertas, de la `
 - **THEN** la de `firstSeen` más reciente aparece antes que la más antigua, y el conteo es el de todas las abiertas
 
 ### Requirement: El docente filtra por regional y por especialidad
-El directorio MUST ofrecer un filtro de regional con cada regional del catálogo, identificada por su etiqueta actual, y un filtro de especialidad con cada especialidad del catálogo, identificada por su texto exacto. El filtro de especialidad MUST aceptar una sola especialidad. El filtro de regional MUST aceptar ninguna, una o varias regionales a la vez. Cada filtro MUST poder quedar en todas. Una regional o especialidad del catálogo MUST poder elegirse aunque no tenga vacantes abiertas.
+El directorio MUST ofrecer un filtro de regional con cada regional del catálogo, identificada por su etiqueta actual, y un filtro de especialidad con cada especialidad del catálogo, identificada por su texto exacto. El filtro de especialidad MUST aceptar una sola especialidad. El filtro de regional MUST aceptar ninguna, una o varias regionales a la vez, y MUST NOT aceptar más de cinco. Cada filtro MUST poder quedar en todas. Una regional o especialidad del catálogo MUST poder elegirse aunque no tenga vacantes abiertas. Cada filtro MUST poder buscarse por texto dentro de su panel.
 
-El control de regional, cerrado y sin regionales elegidas, MUST decir "Todas las regionales". Con una regional elegida, MUST mostrar la etiqueta actual de esa regional. Con dos o más, MUST mostrar la cantidad de regionales elegidas, un espacio y la palabra "regionales". Al abrirlo, cada regional elegida MUST verse marcada y cada regional no elegida MUST verse sin marca. Activar una regional marcada MUST quitarla. Activar una regional sin marca MUST agregarla sin quitar las que ya estaban. Activar "Todas las regionales" MUST dejar el filtro de regional en todas y MUST NOT quitar la especialidad elegida.
+El control de regional, cerrado y sin regionales elegidas, MUST decir "Todas las regionales". Con una regional elegida, MUST mostrar la etiqueta actual de esa regional. Con dos o más, MUST mostrar la cantidad de regionales elegidas, un espacio y la palabra "regionales". Al abrirlo, cada regional elegida MUST verse marcada y cada regional no elegida MUST verse sin marca. Activar una regional marcada MUST quitarla. Activar una regional sin marca MUST agregarla sin quitar las que ya estaban, salvo cuando ya hay cinco: entonces MUST NOT agregarla, MUST verse deshabilitada y el panel MUST decir "Máximo 5 regionales". Activar "Todas las regionales" MUST dejar el filtro de regional en todas y MUST NOT quitar la especialidad elegida.
+
+El control de especialidad, cerrado y sin especialidad elegida, MUST decir "Todas las especialidades". Con una especialidad elegida, MUST mostrar su texto exacto. Elegir una especialidad MUST reemplazar la anterior y MUST NOT quitar las regionales. Activar "Todas las especialidades" MUST dejar la especialidad en todas y MUST NOT quitar las regionales.
 
 Sin regionales elegidas, la lista MUST incluir vacantes abiertas de cualquier regional. Con una o más regionales elegidas, la lista MUST incluir las vacantes abiertas cuyo value de catálogo sea el de cualquiera de esas regionales. Con una especialidad elegida, la lista MUST incluir solo vacantes abiertas cuyo texto de especialidad sea ese texto exacto. Con regionales y especialidad elegidas, la lista MUST incluir solo las vacantes que cumplen la especialidad y además están en alguna de las regionales elegidas. Quitar una regional MUST dejar las demás regionales y la especialidad como estaban. Quitar la especialidad MUST dejar las regionales como estaban. Elegir otra especialidad MUST reemplazar la anterior.
 
@@ -101,7 +103,23 @@ Sin regionales elegidas, la lista MUST incluir vacantes abiertas de cualquier re
 
 #### Scenario: La especialidad sigue siendo una
 - **WHEN** un docente verificado ya eligió una especialidad y elige otra
-- **THEN** queda elegida solo la última
+- **THEN** queda elegida solo la última y las regionales elegidas se conservan
+
+#### Scenario: Sexta regional
+- **WHEN** un docente verificado ya eligió cinco regionales y activa una sexta que no está marcada
+- **THEN** la sexta no queda elegida, el control cerrado dice "5 regionales" y el panel dice "Máximo 5 regionales"
+
+#### Scenario: Buscar una regional
+- **WHEN** un docente verificado abre el filtro de regional y escribe un texto que, sin distinguir mayúsculas ni tildes, coincide con una sola etiqueta del catálogo
+- **THEN** esa regional sigue visible, las que no coinciden no, y "Todas las regionales" sigue visible
+
+#### Scenario: Buscar una especialidad
+- **WHEN** un docente verificado abre el filtro de especialidad y elige una especialidad que el texto dejó visible
+- **THEN** el control cerrado muestra el texto exacto de esa especialidad y las regionales elegidas se conservan
+
+#### Scenario: Todas las especialidades
+- **WHEN** hay una especialidad elegida y regionales elegidas, y el docente activa "Todas las especialidades"
+- **THEN** la especialidad vuelve a todas, las regionales se conservan y el control de especialidad dice "Todas las especialidades"
 
 ### Requirement: El directorio distingue lista vacía de filtro sin coincidencias
 Cuando no hay vacantes abiertas, el directorio MUST indicarlo con un mensaje de que no hay vacantes abiertas. Cuando sí hay vacantes abiertas y el filtro no coincide con ninguna, el directorio MUST mostrar otro mensaje. Si hay una especialidad elegida, ese mensaje MUST nombrarla. Si hay una sola regional elegida, MUST nombrarla. Si hay varias, MUST nombrar cada etiqueta en el orden del catálogo: dos se unen con "o" ("en {primera} o en {segunda}") y tres o más separan las primeras con coma y anteceden la última con "o" ("en {primera}, en {segunda} o en {tercera}"). Ese mensaje MUST NOT ser el de que no hay vacantes abiertas.
@@ -186,3 +204,22 @@ Cuando el docente tiene al menos un filtro distinto de todas, el directorio MUST
 #### Scenario: Sin filtros
 - **WHEN** las regionales y la especialidad están en todas
 - **THEN** no se muestran filtros activos ni la acción "Limpiar filtros"
+
+### Requirement: La ficha del docente copia el ID de la vacante
+En cada ficha de vacante abierta del directorio del docente, el directorio MUST mostrar un control de copiar inmediatamente a la derecha del número de vacante visible. El número visible MUST seguir mostrando el prefijo `#` seguido del ID. Activar el control MUST copiar al portapapeles solo el ID de esa vacante, sin el carácter `#`. El control MUST poder activarse con puntero y con teclado. Su nombre accesible MUST indicar que copia el ID de esa vacante. Cuando la copia tiene éxito, el control MUST mostrar una confirmación perceptible de que el ID se copió. Cuando la copia falla, el control MUST NOT mostrar esa confirmación de éxito. El número visible MUST NOT cambiar al copiar.
+
+#### Scenario: Copiar el ID sin el prefijo
+- **WHEN** un docente verificado activa el control de copiar en una ficha cuyo número visible es `#1003`
+- **THEN** el portapapeles contiene `1003` y la ficha sigue mostrando `#1003`
+
+#### Scenario: La copia se confirma
+- **WHEN** un docente verificado activa el control de copiar y la escritura al portapapeles tiene éxito
+- **THEN** el control muestra una confirmación perceptible de que el ID se copió
+
+#### Scenario: La copia falla
+- **WHEN** un docente verificado activa el control de copiar y la escritura al portapapeles falla
+- **THEN** el control no muestra la confirmación de éxito y la ficha sigue mostrando el número con `#`
+
+#### Scenario: El control se nombra
+- **WHEN** un docente verificado enfoca el control de copiar de una vacante
+- **THEN** el nombre accesible del control indica que copia el ID de esa vacante

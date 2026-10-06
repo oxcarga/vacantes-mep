@@ -2,9 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { COLLECTIONS } from "@gomep/schema";
 import {
   adminSdk,
+  elegirEspecialidad,
   elegirRegional,
   seedCatalogsAndVacancies,
   seedVerifiedUser,
+  todasLasEspecialidades,
   todasLasRegionales,
 } from "./helpers";
 
@@ -267,6 +269,31 @@ test("6.3 la ficha muestra los datos de la vacante y omite Aplicar si no hay enl
   await expect(page.getByTestId("vacante-1002")).toHaveCount(0);
 });
 
+test("el docente copia el ID de la vacante sin el prefijo", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await login(page, "docente@example.com", "password12");
+  const completa = page.getByTestId("vacante-1003");
+  const copiar = completa.getByTestId("vacante-1003-copiar-id");
+  await expect(copiar).toHaveAccessibleName("Copiar ID de vacante 1003");
+  await copiar.click();
+  await expect(copiar).toHaveAccessibleName("ID copiado");
+  await expect(completa.getByText("#1003", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("1003");
+});
+
+test("si copiar el ID falla, la ficha no confirma el éxito", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await login(page, "docente@example.com", "password12");
+  const completa = page.getByTestId("vacante-1001");
+  const copiar = completa.getByTestId("vacante-1001-copiar-id");
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new Error("denied"));
+  });
+  await copiar.click();
+  await expect(copiar).toHaveAccessibleName("Copiar ID de vacante 1001");
+  await expect(completa.getByText("#1001", { exact: true })).toBeVisible();
+});
+
 test("6.4 las abiertas se ordenan por primera vista y el conteo las incluye", async ({
   page,
 }) => {
@@ -291,7 +318,7 @@ test("6.5 los filtros de regional y especialidad recortan la lista", async ({ pa
   await expect(page.getByTestId("vacante-1003")).toHaveCount(0);
 
   await todasLasRegionales(page);
-  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
 
@@ -301,7 +328,7 @@ test("6.5 los filtros de regional y especialidad recortan la lista", async ({ pa
 
   await todasLasRegionales(page);
   await elegirRegional(page, "99");
-  await page.getByTestId("vacantes-especialidad").selectOption("");
+  await todasLasEspecialidades(page);
   await expect(page.locator("[data-testid^='vacante-']")).toHaveCount(0);
   await expect(page.getByTestId("vacantes-count")).toHaveText("0");
 });
@@ -310,7 +337,7 @@ test("6.6 el filtro sin coincidencias no usa el mensaje de lista vacía", async 
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await elegirRegional(page, "62");
-  await page.getByTestId("vacantes-especialidad").selectOption("Español");
+  await elegirEspecialidad(page, "Español");
   await expect(page.getByTestId("vacantes-empty-filter")).toHaveText(
     "No hay vacantes abiertas de Español en Regional Educación Santa Cruz.",
   );
@@ -433,15 +460,13 @@ test("9.3 el conteo se lee como frase en singular o plural", async ({ page }) =>
   await expect(frase).toHaveText("3 vacantes");
   await expect(page.getByTestId("vacantes-count")).toHaveText("3");
 
-  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await elegirRegional(page, "62");
   await expect(frase).toHaveText("1 vacante");
   await expect(page.getByTestId("vacantes-count")).toHaveText("1");
 });
 
-test("9.4 la especialidad sigue siendo un select y la regional un botón", async ({
-  page,
-}) => {
+test("9.4 regional y especialidad son botones con dropdown buscable", async ({ page }) => {
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   const regional = await page.getByTestId("vacantes-regional").evaluate((el) => el.tagName);
@@ -449,7 +474,7 @@ test("9.4 la especialidad sigue siendo un select y la regional un botón", async
     .getByTestId("vacantes-especialidad")
     .evaluate((el) => el.tagName);
   expect(regional).toBe("BUTTON");
-  expect(especialidad).toBe("SELECT");
+  expect(especialidad).toBe("BUTTON");
 });
 
 test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ page }) => {
@@ -463,7 +488,7 @@ test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ pa
   await expect(limpiar).toHaveCount(0);
 
   await elegirRegional(page, "62");
-  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await expect(chipRegional).toHaveText("Regional Educación Santa Cruz");
   await expect(chipEspecialidad).toHaveText("Inglés");
   await expect(limpiar).toBeVisible();
@@ -481,7 +506,7 @@ test("9.5 los filtros activos se ven y se quitan uno a uno o todos", async ({ pa
   await elegirRegional(page, "62");
   await limpiar.click();
   await expect(page.getByTestId("vacantes-regional")).toHaveText("Todas las regionales");
-  await expect(page.getByTestId("vacantes-especialidad")).toHaveValue("");
+  await expect(page.getByTestId("vacantes-especialidad")).toHaveText("Todas las especialidades");
   await expect(page.getByTestId("vacantes-count")).toHaveText("3");
   await expect(chipRegional).toHaveCount(0);
   await expect(chipEspecialidad).toHaveCount(0);
@@ -492,7 +517,7 @@ test("9.6 el filtro sin coincidencias ofrece limpiar filtros", async ({ page }) 
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await elegirRegional(page, "62");
-  await page.getByTestId("vacantes-especialidad").selectOption("Español");
+  await elegirEspecialidad(page, "Español");
   const limpiar = page.getByTestId("vacantes-empty-filter-limpiar");
   await expect(limpiar).toBeVisible();
   await limpiar.click();
@@ -534,19 +559,19 @@ test("9.13 el dropdown de regionales acepta varias y se cierra con Escape", asyn
   await expect(regional).toHaveAttribute("aria-expanded", "false");
   await expect(lista).toHaveCount(0);
 
-  await especialidad.selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await todasLasRegionales(page);
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
-  await expect(especialidad).toHaveValue("Inglés");
+  await expect(especialidad).toHaveText("Inglés");
 
-  await especialidad.selectOption("Español");
-  await especialidad.selectOption("Inglés");
-  await expect(especialidad).toHaveValue("Inglés");
+  await elegirEspecialidad(page, "Español");
+  await elegirEspecialidad(page, "Inglés");
+  await expect(especialidad).toHaveText("Inglés");
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
 
   expect(await regional.evaluate((el) => el.tagName)).toBe("BUTTON");
-  expect(await especialidad.evaluate((el) => el.tagName)).toBe("SELECT");
+  expect(await especialidad.evaluate((el) => el.tagName)).toBe("BUTTON");
 });
 
 test("9.14 cada regional elegida es una píldora y la X la desmarca", async ({ page }) => {
@@ -578,7 +603,7 @@ test("9.14 cada regional elegida es una píldora y la X la desmarca", async ({ p
     "Regional Educación Santa Cruz",
   );
 
-  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await expect(page.getByTestId("vacante-1003")).toBeVisible();
   await expect(page.getByTestId("vacante-1001")).toHaveCount(0);
 });
@@ -589,7 +614,7 @@ test("9.15 la píldora de especialidad usa verde claro y la de regional primary"
   await login(page, "docente@example.com", "password12");
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await elegirRegional(page, "53");
-  await page.getByTestId("vacantes-especialidad").selectOption("Inglés");
+  await elegirEspecialidad(page, "Inglés");
   await expect(page.getByTestId("vacantes-filtro-regional-53")).toHaveClass(/bg-primary\/10/);
   await expect(page.getByTestId("vacantes-filtro-regional-53")).toHaveClass(/text-primary/);
   await expect(page.getByTestId("vacantes-filtro-especialidad")).toHaveClass(/bg-green-200/);
@@ -601,7 +626,7 @@ test("9.16 dos regionales sin coincidencias nombran ambas unidas por o", async (
   await expect(page.getByTestId("vacante-1001")).toBeVisible();
   await elegirRegional(page, "62");
   await elegirRegional(page, "99");
-  await page.getByTestId("vacantes-especialidad").selectOption("Español");
+  await elegirEspecialidad(page, "Español");
   await expect(page.getByTestId("vacantes-empty-filter")).toHaveText(
     "No hay vacantes abiertas de Español en Regional Educación Santa Cruz o en Regional sin vacantes.",
   );
@@ -632,6 +657,83 @@ test("9.17 el listbox cabe en la pantalla y las píldoras pasan de línea", asyn
   expect(wide).not.toBeNull();
   expect(wide!.x).toBeGreaterThanOrEqual(0);
   expect(wide!.x + wide!.width).toBeLessThanOrEqual(1280);
+});
+
+test("11.1 el dropdown de regional filtra por texto y Escape conserva la elección", async ({
+  page,
+}) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await page.getByTestId("vacantes-regional").click();
+  const buscar = page.getByTestId("vacantes-regional-buscar");
+  await buscar.fill("santa");
+  await expect(page.getByTestId("vacantes-regional-todas")).toBeVisible();
+  await expect(page.getByTestId("vacantes-regional-opcion-62")).toBeVisible();
+  await expect(page.getByTestId("vacantes-regional-opcion-53")).toHaveCount(0);
+  await buscar.fill("zzznomatch");
+  await expect(page.getByTestId("vacantes-regional-sin-coincidencias")).toBeVisible();
+
+  await buscar.fill("");
+  await elegirRegional(page, "53");
+  await buscar.fill("probe");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("vacantes-regional-lista")).toHaveCount(0);
+  await expect(page.getByTestId("vacantes-regional")).toHaveText(
+    "Regional Educación Perez Zeledon",
+  );
+});
+
+test("11.2 el tope de cinco regionales deshabilita la sexta", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  for (const id of ["53", "62", "99", "54", "55"]) {
+    await elegirRegional(page, id);
+  }
+  await expect(page.getByTestId("vacantes-regional")).toHaveText("5 regionales");
+  await expect(page.getByTestId("vacantes-regional-maximo")).toHaveText("Máximo 5 regionales");
+  const sexta = page.getByTestId("vacantes-regional-opcion-56");
+  await expect(sexta).toBeDisabled();
+  await sexta.click({ force: true });
+  await expect(page.getByTestId("vacantes-regional")).toHaveText("5 regionales");
+  await elegirRegional(page, "55");
+  await expect(page.getByTestId("vacantes-regional-maximo")).toBeVisible();
+  await expect(
+    page.getByTestId("vacantes-regional-maximo").getByText("Máximo 5 regionales"),
+  ).toBeHidden();
+  await elegirRegional(page, "56");
+  await expect(page.getByTestId("vacantes-regional")).toHaveText("5 regionales");
+});
+
+test("11.3 teclado en el dropdown de regional", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  const regional = page.getByTestId("vacantes-regional");
+  await regional.click();
+  const buscar = page.getByTestId("vacantes-regional-buscar");
+  await expect(regional).toHaveText("Todas las regionales");
+  await buscar.press("Enter");
+  await expect(regional).toHaveText("Todas las regionales");
+  await buscar.fill("perez");
+  await buscar.press("Enter");
+  await expect(regional).toHaveText("Regional Educación Perez Zeledon");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("vacantes-regional-lista")).toHaveCount(0);
+  await expect(regional).toBeFocused();
+});
+
+test("11.4 especialidad buscable conserva regionales", async ({ page }) => {
+  await login(page, "docente@example.com", "password12");
+  await expect(page.getByTestId("vacante-1001")).toBeVisible();
+  await elegirRegional(page, "62");
+  await page.getByTestId("vacantes-especialidad").click();
+  await page.getByTestId("vacantes-especialidad-buscar").fill("ing");
+  await page.getByTestId("vacantes-especialidad-opcion-Inglés").click();
+  await expect(page.getByTestId("vacantes-especialidad")).toHaveText("Inglés");
+  await expect(page.getByTestId("vacantes-regional")).toHaveText("Regional Educación Santa Cruz");
+  await elegirEspecialidad(page, "Español");
+  await expect(page.getByTestId("vacantes-especialidad")).toHaveText("Español");
+  await todasLasEspecialidades(page);
+  await expect(page.getByTestId("vacantes-especialidad")).toHaveText("Todas las especialidades");
 });
 
 test("9.7 mientras cargan las vacantes no se dice que no hay", async ({ page }) => {

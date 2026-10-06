@@ -81,6 +81,18 @@ export async function seedCatalogsAndVacancies() {
     label: "Regional sin vacantes",
     lastSeen: new Date().toISOString(),
   });
+  await db.collection(COLLECTIONS.regionales).doc("54").set({
+    label: "Regional Educación Extra A",
+    lastSeen: new Date().toISOString(),
+  });
+  await db.collection(COLLECTIONS.regionales).doc("55").set({
+    label: "Regional Educación Extra B",
+    lastSeen: new Date().toISOString(),
+  });
+  await db.collection(COLLECTIONS.regionales).doc("56").set({
+    label: "Regional Educación Extra C",
+    lastSeen: new Date().toISOString(),
+  });
   await db.collection(COLLECTIONS.especialidades).doc("ing").set({
     name: "Inglés",
     lastSeen: new Date().toISOString(),
@@ -176,4 +188,22 @@ export async function elegirRegional(page: Page, id: string) {
 export async function todasLasRegionales(page: Page) {
   await abrirRegionales(page);
   await page.getByTestId("vacantes-regional-todas").click();
+}
+
+async function abrirEspecialidades(page: Page) {
+  const lista = page.getByTestId("vacantes-especialidad-lista");
+  if (!(await lista.isVisible())) {
+    await page.getByTestId("vacantes-especialidad").click();
+    await lista.waitFor({ state: "visible" });
+  }
+}
+
+export async function elegirEspecialidad(page: Page, name: string) {
+  await abrirEspecialidades(page);
+  await page.getByTestId(`vacantes-especialidad-opcion-${name}`).click();
+}
+
+export async function todasLasEspecialidades(page: Page) {
+  await abrirEspecialidades(page);
+  await page.getByTestId("vacantes-especialidad-todas").click();
 }

@@ -10,7 +10,7 @@ import {
   Building2,
   CalendarDays,
   Check,
-  ChevronDown,
+  Copy,
   ExternalLink,
   GraduationCap,
   MapPin,
@@ -21,6 +21,7 @@ import { COLLECTIONS } from "@gomep/schema";
 import { AppShell } from "@/components/app-shell";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownSearchable } from "@/components/dropdown-searchable";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { getClientDb } from "@/lib/firebase";
@@ -142,6 +143,57 @@ function EstadoVacio({
   );
 }
 
+function CopiarIdVacante({ id }: { id: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const timer = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    };
+  }, []);
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(id);
+    } catch {
+      return;
+    }
+    setCopiado(true);
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      setCopiado(false);
+      timer.current = null;
+    }, 2000);
+  }
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <span className="font-mono text-xs text-muted-foreground">#{id}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground cursor-pointer"
+        data-testid={`vacante-${id}-copiar-id`}
+        aria-label={copiado ? "ID copiado" : `Copiar ID de vacante ${id}`}
+        onClick={() => {
+          void copiar();
+        }}
+      >
+        {copiado ? (
+          <Check aria-hidden className="size-3.5" />
+        ) : (
+          <Copy aria-hidden className="size-3.5" />
+        )}
+      </Button>
+      <span className="sr-only" aria-live="polite">
+        {copiado ? "ID copiado" : ""}
+      </span>
+    </div>
+  );
+}
+
 function FichasCargando() {
   return (
     <div
@@ -178,10 +230,8 @@ export default function VacantesPage() {
   const [vacantesListas, setVacantesListas] = useState(false);
   const [regionalesListas, setRegionalesListas] = useState(false);
   const [regionalValues, setRegionalValues] = useState<string[]>([]);
-  const [regionalAbierta, setRegionalAbierta] = useState(false);
   const [especialidad, setEspecialidad] = useState("");
   const [error, setError] = useState("");
-  const regionalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -243,24 +293,6 @@ export default function VacantesPage() {
     };
   }, [user, verified, role]);
 
-  useEffect(() => {
-    if (!regionalAbierta) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!regionalRef.current?.contains(event.target as Node)) {
-        setRegionalAbierta(false);
-      }
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setRegionalAbierta(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [regionalAbierta]);
-
   const labelByValue = useMemo(
     () => new Map(regionales.map((row) => [row.id, row.label])),
     [regionales],
@@ -280,29 +312,21 @@ export default function VacantesPage() {
   }, [rows, elegidas, especialidad]);
 
   const cargando = !vacantesListas || !regionalesListas;
-  const regionalCerrada =
-    regionalesElegidas.length === 0
-      ? "Todas las regionales"
-      : regionalesElegidas.length === 1
-        ? regionalesElegidas[0].label
-        : `${regionalesElegidas.length} regionales`;
   const hayFiltros = regionalesElegidas.length > 0 || Boolean(especialidad);
 
-  function toggleRegional(id: string) {
-    setRegionalValues((prev) =>
-      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id],
-    );
-  }
+  const opcionesRegionales = useMemo(
+    () => regionales.map((row) => ({ value: row.id, label: row.label })),
+    [regionales],
+  );
 
-  function limpiarRegionales() {
-    setRegionalValues([]);
-    setRegionalAbierta(false);
-  }
+  const opcionesEspecialidades = useMemo(
+    () => especialidades.map((row) => ({ value: row.name, label: row.name })),
+    [especialidades],
+  );
 
   function limpiarFiltros() {
     setRegionalValues([]);
     setEspecialidad("");
-    setRegionalAbierta(false);
   }
 
   const donde = fraseRegionales(regionalesElegidas.map((row) => row.label));
@@ -331,102 +355,35 @@ export default function VacantesPage() {
         className="flex flex-col gap-4 rounded-xl border bg-muted/50 p-4"
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="relative" ref={regionalRef}>
-            <Label className={fieldClass}>
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin aria-hidden className="size-4 text-muted-foreground" />
-                Regional
-              </span>
-              <span className="relative">
-                <button
-                  type="button"
-                  className={`${selectClass} text-left`}
-                  data-testid="vacantes-regional"
-                  aria-haspopup="listbox"
-                  aria-expanded={regionalAbierta}
-                  aria-controls="vacantes-regional-lista"
-                  onClick={() => setRegionalAbierta((open) => !open)}
-                >
-                  <span className="block truncate">{regionalCerrada}</span>
-                </button>
-                <ChevronDown
-                  aria-hidden
-                  className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-              </span>
-            </Label>
-            {regionalAbierta ? (
-              <ul
-                id="vacantes-regional-lista"
-                data-testid="vacantes-regional-lista"
-                role="listbox"
-                aria-multiselectable="true"
-                className="absolute top-full right-0 left-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md"
-              >
-                <li>
-                  <button
-                    type="button"
-                    role="option"
-                    data-testid="vacantes-regional-todas"
-                    aria-selected={regionalesElegidas.length === 0}
-                    onClick={limpiarRegionales}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      {regionalesElegidas.length === 0 ? (
-                        <Check aria-hidden className="size-4" />
-                      ) : null}
-                    </span>
-                    Todas las regionales
-                  </button>
-                </li>
-                {regionales.map((row) => {
-                  const elegida = elegidas.has(row.id);
-                  return (
-                    <li key={row.id}>
-                      <button
-                        type="button"
-                        role="option"
-                        data-testid={`vacantes-regional-opcion-${row.id}`}
-                        aria-selected={elegida}
-                        onClick={() => toggleRegional(row.id)}
-                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 ${elegida ? "bg-muted" : ""}`}
-                      >
-                        <span className="flex size-4 shrink-0 items-center justify-center">
-                          {elegida ? <Check aria-hidden className="size-4" /> : null}
-                        </span>
-                        {row.label}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-          </div>
+          <Label className={fieldClass}>
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin aria-hidden className="size-4 text-muted-foreground" />
+              Regional
+            </span>
+            <DropdownSearchable
+              options={opcionesRegionales}
+              value={regionalValues}
+              onChange={setRegionalValues}
+              multiple
+              max={5}
+              nombre="regionales"
+              idPrefix="vacantes-regional"
+              buttonClassName={selectClass}
+            />
+          </Label>
           <Label className={fieldClass}>
             <span className="inline-flex items-center gap-1.5">
               <GraduationCap aria-hidden className="size-4 text-muted-foreground" />
               Especialidad
             </span>
-            <span className="relative">
-              <select
-                className={selectClass}
-                value={especialidad}
-                onChange={(event) => setEspecialidad(event.target.value)}
-                data-testid="vacantes-especialidad"
-              >
-                <option value="">Todas las especialidades</option>
-                {especialidades.map((row) => (
-                  <option key={row.id} value={row.name}>
-                    {row.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </span>
+            <DropdownSearchable
+              options={opcionesEspecialidades}
+              value={especialidad ? [especialidad] : []}
+              onChange={(next) => setEspecialidad(next[0] ?? "")}
+              nombre="especialidades"
+              idPrefix="vacantes-especialidad"
+              buttonClassName={selectClass}
+            />
           </Label>
         </div>
         {hayFiltros ? (
@@ -498,7 +455,7 @@ export default function VacantesPage() {
                             </span>
                           ) : null}
                         </div>
-                        <span className="font-mono text-xs text-muted-foreground">#{row.id}</span>
+                        <CopiarIdVacante id={row.id} />
                       </CardHeader>
                       <CardContent className="flex flex-1 flex-col gap-2">
                         {institucion ? (

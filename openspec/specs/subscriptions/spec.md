@@ -69,19 +69,19 @@ Cada suscripción activa del docente MUST mostrarse como ficha. La ficha MUST in
 - **THEN** la ficha muestra ese value
 
 ### Requirement: El historial explica el cierre en español
-Cada suscripción inactiva MUST mostrarse como ficha de historial con la especialidad y la misma regla de etiqueta de regional que una ficha activa. Cuando `endReason` es `removed`, la ficha MUST decir "La quitaste". Cuando `endReason` es `expired`, la ficha MUST decir "Venció". Cuando `endReason` falta o tiene otro valor, la ficha MUST omitir esa frase. La ficha MUST NOT mostrar los códigos `removed` ni `expired`.
+Cada suscripción inactiva MUST mostrarse como fila de historial con la especialidad y la misma regla de etiqueta de regional que una ficha activa. Cuando `endReason` es `removed`, la fila MUST decir "La quitaste". Cuando `endReason` es `expired`, la fila MUST decir "Venció". Cuando `endReason` falta o tiene otro valor, la fila MUST omitir esa frase. La fila MUST NOT mostrar los códigos `removed` ni `expired`.
 
 #### Scenario: La quitó el docente
 - **WHEN** una suscripción inactiva tiene `endReason` `removed`
-- **THEN** la ficha de historial dice "La quitaste" y no dice `removed`
+- **THEN** la fila de historial dice "La quitaste" y no dice `removed`
 
 #### Scenario: Venció el plazo
 - **WHEN** una suscripción inactiva tiene `endReason` `expired`
-- **THEN** la ficha de historial dice "Venció" y no dice `expired`
+- **THEN** la fila de historial dice "Venció" y no dice `expired`
 
 #### Scenario: Motivo ausente
 - **WHEN** una suscripción inactiva no tiene `endReason`
-- **THEN** la ficha no dice "La quitaste", ni "Venció", ni un código de motivo
+- **THEN** la fila no dice "La quitaste", ni "Venció", ni un código de motivo
 
 ### Requirement: La página cuenta las suscripciones activas
 Después de cargar, la página MUST mostrar cuántas suscripciones activas tiene el docente. Una se nombra "activa" y cualquier otro número, incluido cero, se nombra "activas".
@@ -106,7 +106,7 @@ Cuando no hay suscripciones activas, la página MUST indicarlo con "No tienes su
 - **THEN** se ve "Todavía no hay historial." y no se ve "No tienes suscripciones activas."
 
 ### Requirement: La página indica que está cargando
-Mientras la página aún no recibe el primer resultado de las suscripciones del docente y el primer resultado del catálogo de regionales, MUST mostrar un indicador de carga. Durante la carga, la página MUST NOT mostrar fichas activas, fichas de historial, el conteo, ni los mensajes de lista vacía o de historial vacío. Al recibir ambos resultados, el indicador MUST desaparecer y la página MUST mostrar las fichas, el conteo y los mensajes que correspondan. Si alguna de las dos lecturas falla, el indicador MUST desaparecer y la página MUST mostrar el error. El catálogo de especialidades MUST NOT retrasar el fin de la carga.
+Mientras la página aún no recibe el primer resultado de las suscripciones del docente y el primer resultado del catálogo de regionales, MUST mostrar un indicador de carga. Durante la carga, la página MUST NOT mostrar fichas activas, filas de historial, el conteo, ni los mensajes de lista vacía o de historial vacío. Al recibir ambos resultados, el indicador MUST desaparecer y la página MUST mostrar las fichas, el conteo y los mensajes que correspondan. Si alguna de las dos lecturas falla, el indicador MUST desaparecer y la página MUST mostrar el error. El catálogo de especialidades MUST NOT retrasar el fin de la carga.
 
 #### Scenario: Las suscripciones tardan en llegar
 - **WHEN** un docente verificado abre la página y el primer resultado de sus suscripciones aún no llega
@@ -128,20 +128,43 @@ Las opciones de regional del formulario MUST listar cada regional del catálogo 
 - **THEN** el select de regional muestra esas etiquetas en orden alfabético español, debajo de la opción vacía
 
 ### Requirement: El historial ofrece agregar de nuevo cuando el par no está activo
-Cada ficha de historial cuyo par de regional y especialidad no tiene una suscripción activa del mismo docente MUST ofrecer la acción "Agregar de nuevo". Esa acción MUST crear una suscripción activa nueva para el par guardado en esa fila, con un plazo fresco de 30 días, y MUST dejar la fila inactiva sin cambios. MUST NOT usar la regional ni la especialidad elegidas en el formulario. Cuando ya existe una suscripción activa de ese mismo par, la ficha de historial MUST NOT ofrecer "Agregar de nuevo". Si hay varias fichas de historial del mismo par, cada una MUST ofrecer la acción mientras ninguna activa de ese par exista, y MUST dejar de ofrecerla en cuanto exista una.
+Cada fila de historial cuyo par de regional y especialidad no tiene una suscripción activa del mismo docente MUST ofrecer la acción "Agregar de nuevo". Esa acción MUST crear una suscripción activa nueva para el par guardado en esa fila, con un plazo fresco de 30 días, y MUST dejar la fila inactiva sin cambios. MUST NOT usar la regional ni la especialidad elegidas en el formulario. Cuando ya existe una suscripción activa de ese mismo par, la fila de historial MUST NOT ofrecer "Agregar de nuevo". Si hay varias filas de historial del mismo par, cada una MUST ofrecer la acción mientras ninguna activa de ese par exista, y MUST dejar de ofrecerla en cuanto exista una.
 
 #### Scenario: Reabrir un par vencido
-- **WHEN** el docente usa "Agregar de nuevo" en una ficha inactiva y no tiene una activa de ese par
-- **THEN** aparece una suscripción activa nueva de ese par y la ficha inactiva sigue en el historial
+- **WHEN** el docente usa "Agregar de nuevo" en una fila inactiva y no tiene una activa de ese par
+- **THEN** aparece una suscripción activa nueva de ese par y la fila inactiva sigue en el historial
 
 #### Scenario: El par ya está activo
-- **WHEN** el docente ya tiene una suscripción activa para el mismo par de una ficha inactiva
-- **THEN** esa ficha de historial no ofrece "Agregar de nuevo"
+- **WHEN** el docente ya tiene una suscripción activa para el mismo par de una fila inactiva
+- **THEN** esa fila de historial no ofrece "Agregar de nuevo"
 
 #### Scenario: Quitar la activa devuelve la acción
 - **WHEN** el docente quita la suscripción activa de un par que también está en el historial
-- **THEN** la ficha de historial vuelve a ofrecer "Agregar de nuevo"
+- **THEN** la fila de historial vuelve a ofrecer "Agregar de nuevo"
 
 #### Scenario: El formulario tiene otra selección
 - **WHEN** el formulario tiene elegida otra regional u otra especialidad y el docente usa "Agregar de nuevo"
-- **THEN** la suscripción nueva usa el par de la ficha de historial
+- **THEN** la suscripción nueva usa el par de la fila de historial
+
+### Requirement: El historial se muestra en filas
+Cada suscripción inactiva MUST mostrarse como una fila de una lista vertical de una sola columna, bajo el título "Historial". La fila MUST incluir la especialidad, la etiqueta de la regional con la misma regla que una ficha activa, y la frase de motivo: "La quitaste" cuando `endReason` es `removed`, "Venció" cuando es `expired`, y ninguna frase cuando falta o tiene otro valor. La fila MUST NOT mostrar los códigos `removed` ni `expired`. La lista MUST NOT colocar esas filas en una cuadrícula de varias columnas ni con el tratamiento de ficha de las suscripciones activas. En un viewport estrecho la fila MUST seguir siendo una entrada de esa lista. Las suscripciones activas MUST seguir mostrándose como fichas. Cuando el par de la fila no tiene una suscripción activa del mismo docente, "Agregar de nuevo" MUST estar en esa fila.
+
+#### Scenario: Historial y activas a la vez
+- **WHEN** un docente verificado tiene al menos una suscripción activa y al menos una inactiva, y la página se ve en un viewport ancho
+- **THEN** la activa se muestra como ficha y la inactiva como fila de una lista de una sola columna
+
+#### Scenario: Dos inactivas quedan una bajo la otra
+- **WHEN** el docente tiene dos suscripciones inactivas y la página se ve en un viewport ancho
+- **THEN** las dos filas quedan una debajo de la otra y no una al lado de la otra
+
+#### Scenario: La fila dice el motivo
+- **WHEN** una suscripción inactiva tiene `endReason` `removed`
+- **THEN** su fila dice "La quitaste" y no dice `removed`
+
+#### Scenario: Agregar de nuevo sigue en la fila
+- **WHEN** el par de una fila de historial no tiene una suscripción activa del mismo docente
+- **THEN** "Agregar de nuevo" está en esa fila
+
+#### Scenario: Historial vacío
+- **WHEN** el docente no tiene suscripciones inactivas
+- **THEN** se ve "Todavía no hay historial." y no hay filas de historial

@@ -901,3 +901,77 @@ test("10.7 los vacíos de activas e historial son distintos", async ({ page }) =
   await expect(page.getByTestId("subs-empty-history")).toHaveText("Todavía no hay historial.");
 });
 
+
+test("10.8 el historial se apila en filas", async ({ page }) => {
+  const uid = await docenteUid();
+  const owned = await suscripcionesRef().where("uid", "==", uid).get();
+  await Promise.all(owned.docs.map((docSnap) => docSnap.ref.delete()));
+  const quitada = "e2e-sub-fila-quitada";
+  const vencida = "e2e-sub-fila-vencida";
+  const activa = "e2e-sub-fila-activa";
+  await suscripcionesRef().doc(quitada).set({
+    uid,
+    regionalValue: "78",
+    especialidad: "Ciencias",
+    status: "inactive",
+    createdAt: "2026-02-01T00:00:00.000Z",
+    expiresAt: "2026-03-01T00:00:00.000Z",
+    endedAt: "2026-02-15T00:00:00.000Z",
+    endReason: "removed",
+    reminders: {},
+  });
+  await suscripcionesRef().doc(vencida).set({
+    uid,
+    regionalValue: "57",
+    especialidad: "Español",
+    status: "inactive",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    expiresAt: "2026-01-31T00:00:00.000Z",
+    endedAt: "2026-01-20T00:00:00.000Z",
+    endReason: "expired",
+    reminders: {},
+  });
+  await suscripcionesRef().doc(activa).set({
+    uid,
+    regionalValue: "99",
+    especialidad: "Matemática",
+    status: "active",
+    createdAt: "2026-03-01T00:00:00.000Z",
+    expiresAt: "2026-04-01T00:00:00.000Z",
+    endedAt: null,
+    endReason: null,
+    reminders: {},
+  });
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openSuscripciones(page);
+    const rows = page.getByTestId("subs-history").locator(":scope > li");
+    await expect(rows).toHaveCount(2);
+    const first = await rows.nth(0).boundingBox();
+    const second = await rows.nth(1).boundingBox();
+    if (!first || !second) throw new Error("faltan las filas del historial");
+    expect(second.y).toBeGreaterThanOrEqual(first.y + first.height - 2);
+    expect(Math.abs(first.x - second.x)).toBeLessThan(8);
+    await expect(page.getByTestId("subs-active").getByTestId(`sub-active-${activa}`)).toBeVisible();
+    const removida = page.getByTestId(`sub-inactive-${quitada}`);
+    await expect(removida).toContainText("La quitaste");
+    await expect(removida).not.toContainText("removed");
+    await expect(removida).toContainText("Regional Educación Santa Cruz");
+    await expect(page.getByTestId(`resubscribe-${quitada}`)).toBeVisible();
+  } finally {
+    await suscripcionesRef().doc(quitada).delete();
+    await suscripcionesRef().doc(vencida).delete();
+    await suscripcionesRef().doc(activa).delete();
+    await suscripcionesRef().add({
+      uid,
+      regionalValue: "57",
+      especialidad: "Español",
+      status: "inactive",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-31T00:00:00.000Z",
+      endedAt: "2026-01-20T00:00:00.000Z",
+      endReason: "expired",
+      reminders: {},
+    });
+  }
+});

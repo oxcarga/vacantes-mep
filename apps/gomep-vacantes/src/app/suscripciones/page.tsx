@@ -404,7 +404,10 @@ export default function SuscripcionesPage() {
 
           <h2 className="text-sm font-medium text-muted-foreground">Historial</h2>
           {inactive.length > 0 ? (
-            <ul className="grid list-none gap-4 p-0 sm:grid-cols-2" data-testid="subs-history">
+            <ul
+              className="list-none divide-y rounded-lg border px-4"
+              data-testid="subs-history"
+            >
               {inactive.map((row) => {
                 const label = regionalLabel(row.regionalValue);
                 const phrase = motivo(row.endReason);
@@ -412,31 +415,28 @@ export default function SuscripcionesPage() {
                   pairKey(row.regionalValue, row.especialidad),
                 );
                 return (
-                  <li key={row.id} data-testid={`sub-inactive-${row.id}`}>
-                    <Card className="h-full gap-3">
-                      <CardHeader>
-                        <CardTitle className="font-semibold">{row.especialidad}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex flex-1 flex-col gap-2">
-                        <p className="flex items-start gap-2 text-muted-foreground">
-                          <MapPin aria-hidden className="mt-0.5 size-4 shrink-0" />
-                          {label}
-                        </p>
-                        {phrase ? <p className="text-sm">{phrase}</p> : null}
-                      </CardContent>
-                      {canResubscribe ? (
-                        <CardFooter className="justify-end">
-                          <Button
-                            type="button"
-                            onClick={() => onResubscribe(row)}
-                            disabled={pendingId === row.id}
-                            data-testid={`resubscribe-${row.id}`}
-                          >
-                            Agregar de nuevo
-                          </Button>
-                        </CardFooter>
-                      ) : null}
-                    </Card>
+                  <li
+                    key={row.id}
+                    data-testid={`sub-inactive-${row.id}`}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3"
+                  >
+                    <span className="font-medium">{row.especialidad}</span>
+                    <p className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin aria-hidden className="size-4 shrink-0" />
+                      {label}
+                    </p>
+                    {phrase ? <p className="text-sm">{phrase}</p> : null}
+                    {canResubscribe ? (
+                      <Button
+                        type="button"
+                        className="ml-auto"
+                        onClick={() => onResubscribe(row)}
+                        disabled={pendingId === row.id}
+                        data-testid={`resubscribe-${row.id}`}
+                      >
+                        Agregar de nuevo
+                      </Button>
+                    ) : null}
                   </li>
                 );
               })}

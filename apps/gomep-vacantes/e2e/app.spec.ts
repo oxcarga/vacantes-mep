@@ -329,7 +329,7 @@ test("6.2 agregar, quitar y ver el par en historial", async ({ page }) => {
   await page.getByTestId("nav-suscripciones").click();
   await page.getByTestId("subscribe-regional").selectOption("57");
   await page.getByTestId("subscribe-especialidad").selectOption("Español");
-  await page.getByRole("button", { name: "Agregar" }).click();
+  await page.getByRole("button", { name: "Agregar", exact: true }).click();
   const active = page.locator("[data-testid^='sub-active-']");
   await expect(active).toHaveCount(1);
   await page.getByRole("button", { name: "Quitar" }).click();
@@ -531,3 +531,231 @@ test("9.8 sin vacantes abiertas se ofrece ir a suscripciones", async ({ page }) 
     await seedCatalogsAndVacancies();
   }
 });
+
+async function docenteUid() {
+  const user = await adminSdk().auth.getUserByEmail("docente@example.com");
+  return user.uid;
+}
+
+function suscripcionesRef() {
+  return adminSdk().db.collection(COLLECTIONS.suscripciones);
+}
+
+async function clearActiveSubs(uid: string) {
+  const owned = await suscripcionesRef().where("uid", "==", uid).get();
+  await Promise.all(
+    owned.docs.filter((docSnap) => docSnap.get("status") === "active").map((docSnap) => docSnap.ref.delete()),
+  );
+}
+
+async function openSuscripciones(page: Page, email = "docente@example.com") {
+  await login(page, email, "password12");
+  await page.getByTestId("nav-suscripciones").click();
+  await expect(page).toHaveURL(/\/suscripciones$/);
+}
+
+test("10.1 el panel ordena las regionales y conserva los selects", async ({ page }) => {
+  await openSuscripciones(page);
+  await expect(page.getByText("Avisos durante 30 días por un par de regional y especialidad.")).toBeVisible();
+  const regional = page.getByTestId("subscribe-regional");
+  const especialidad = page.getByTestId("subscribe-especialidad");
+  await expect(regional).toHaveJSProperty("tagName", "SELECT");
+  await expect(especialidad).toHaveJSProperty("tagName", "SELECT");
+  const labels = await regional.locator("option").allTextContents();
+  const names = labels.slice(1);
+  const sorted = [...names].sort((a, b) => a.localeCompare(b, "es"));
+  expect(names).toEqual(sorted);
+  const perez = names.indexOf("Regional Educación Perez Zeledon");
+  const santa = names.indexOf("Regional Educación Santa Cruz");
+  const sin = names.indexOf("Regional sin vacantes");
+  expect(perez).toBeGreaterThanOrEqual(0);
+  expect(perez).toBeLessThan(santa);
+  expect(santa).toBeLessThan(sin);
+});
+
+test("10.2 la ficha activa muestra la etiqueta y la fecha de Costa Rica", async ({ page }) => {
+  const uid = await docenteUid();
+  const catalogo = "e2e-sub-activa-57";
+  const ausente = "e2e-sub-activa-00";
+  const base = {
+    uid,
+    status: "active",
+    createdAt: "2026-02-01T00:00:00.000Z",
+    expiresAt: "2026-01-31T00:00:00.000Z",
+    endedAt: null,
+    endReason: null,
+    reminders: {},
+  };
+  await suscripcionesRef().doc(catalogo).set({
+    ...base,
+    regionalValue: "57",
+    especialidad: "Español",
+  });
+  await suscripcionesRef().doc(ausente).set({
+    ...base,
+    regionalValue: "00",
+    especialidad: "Francés",
+    createdAt: "2026-02-02T00:00:00.000Z",
+  });
+  try {
+    await openSuscripciones(page);
+    const conocida = page.getByTestId(`sub-active-${catalogo}`);
+    await expect(conocida).toContainText("Español");
+    await expect(conocida).toContainText("Regional Educación Perez Zeledon");
+    await expect(conocida).toContainText("Vence el 30 ene 2026");
+    await expect(conocida).not.toContainText("57");
+    await expect(conocida.getByRole("button", { name: "Quitar" })).toBeVisible();
+    await expect(page.getByTestId(`sub-active-${ausente}`)).toContainText("00");
+  } finally {
+    await suscripcionesRef().doc(catalogo).delete();
+    await suscripcionesRef().doc(ausente).delete();
+  }
+});
+
+test("10.3 el conteo distingue singular y la más reciente va primero", async ({ page }) => {
+  const uid = await docenteUid();
+  await clearActiveSubs(uid);
+  const reciente = "e2e-sub-reciente";
+  const antigua = "e2e-sub-antigua";
+  const base = {
+    uid,
+    status: "active",
+    expiresAt: "2026-04-01T12:00:00.000Z",
+    endedAt: null,
+    endReason: null,
+    reminders: {},
+  };
+  await suscripcionesRef().doc(reciente).set({
+    ...base,
+    regionalValue: "78",
+    especialidad: "Inglés",
+    createdAt: "2026-03-02T00:00:00.000Z",
+  });
+  await suscripcionesRef().doc(antigua).set({
+    ...base,
+    regionalValue: "99",
+    especialidad: "Matemática",
+    createdAt: "2026-03-01T00:00:00.000Z",
+  });
+  try {
+    await openSuscripciones(page);
+    const frase = page.locator("p[aria-live='polite']");
+    const items = page.getByTestId("subs-active").locator(":scope > li");
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText("Inglés");
+    await expect(items.nth(1)).toContainText("Matemática");
+    await expect(page.getByTestId("subs-count")).toHaveText("2");
+    await expect(frase).toHaveText("2 activas");
+    await suscripcionesRef().doc(reciente).delete();
+    await expect(page.getByTestId("subs-count")).toHaveText("1");
+    await expect(frase).toHaveText("1 activa");
+  } finally {
+    await suscripcionesRef().doc(reciente).delete();
+    await suscripcionesRef().doc(antigua).delete();
+  }
+});
+
+test("10.4 el historial dice el motivo en español", async ({ page }) => {
+  const uid = await docenteUid();
+  const quitada = "e2e-sub-quitada";
+  await suscripcionesRef().doc(quitada).set({
+    uid,
+    regionalValue: "78",
+    especialidad: "Ciencias",
+    status: "inactive",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    expiresAt: "2026-01-31T00:00:00.000Z",
+    endedAt: "2026-01-15T00:00:00.000Z",
+    endReason: "removed",
+    reminders: {},
+  });
+  try {
+    await openSuscripciones(page);
+    const vencida = page.locator("[data-testid^='sub-inactive-']").filter({ hasText: "Venció" });
+    await expect(vencida.first()).toContainText("Regional Educación Perez Zeledon");
+    await expect(vencida.first()).not.toContainText("expired");
+    const removida = page.getByTestId(`sub-inactive-${quitada}`);
+    await expect(removida).toContainText("La quitaste");
+    await expect(removida).not.toContainText("removed");
+  } finally {
+    await suscripcionesRef().doc(quitada).delete();
+  }
+});
+
+test("10.5 agregar de nuevo usa el par de la ficha", async ({ page }) => {
+  const uid = await docenteUid();
+  const owned = await suscripcionesRef().where("uid", "==", uid).get();
+  const expiredId = owned.docs.find(
+    (docSnap) =>
+      docSnap.get("endReason") === "expired" && docSnap.get("especialidad") === "Español",
+  )?.id;
+  if (!expiredId) throw new Error("falta la suscripción vencida del semillero");
+  await clearActiveSubs(uid);
+  try {
+    await openSuscripciones(page);
+    const reabrir = page.getByTestId(`resubscribe-${expiredId}`);
+    await expect(reabrir).toBeVisible();
+    await page.getByTestId("subscribe-regional").selectOption("57");
+    await page.getByTestId("subscribe-especialidad").selectOption("Español");
+    await page.getByRole("button", { name: "Agregar", exact: true }).click();
+    await expect(reabrir).toHaveCount(0);
+    await page.getByRole("button", { name: "Quitar" }).click();
+    await expect(reabrir).toBeVisible();
+    await page.getByTestId("subscribe-regional").selectOption("78");
+    await page.getByTestId("subscribe-especialidad").selectOption("Inglés");
+    await reabrir.click();
+    const nueva = page.getByTestId("subs-active").locator("[data-testid^='sub-active-']");
+    await expect(nueva).toHaveCount(1);
+    await expect(nueva).toContainText("Español");
+    await expect(nueva).toContainText("Regional Educación Perez Zeledon");
+    await expect(nueva).not.toContainText("Inglés");
+    await expect(page.getByTestId(`sub-inactive-${expiredId}`)).toBeVisible();
+  } finally {
+    await clearActiveSubs(uid);
+  }
+});
+
+test("10.6 mientras cargan las suscripciones no se dice que no hay", async ({ page }) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const listen = "**/google.firestore.v1.Firestore/Listen/**";
+  await page.route(listen, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await login(page, "docente@example.com", "password12");
+    await page.getByTestId("nav-suscripciones").click();
+    await expect(page.getByTestId("subs-loading")).toBeVisible();
+    await expect(page.getByTestId("subs-empty-active")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='sub-active-']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='sub-inactive-']")).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(page.getByTestId("subs-loading")).toHaveCount(0);
+  await page.unroute(listen);
+});
+
+test("10.7 los vacíos de activas e historial son distintos", async ({ page }) => {
+  const uid = await docenteUid();
+  await clearActiveSubs(uid);
+  await openSuscripciones(page);
+  await expect(page.getByTestId("subs-empty-active")).toHaveText("No tienes suscripciones activas.");
+  await expect(page.getByTestId("subs-empty-history")).toHaveCount(0);
+
+  const email = `vacio.${Date.now()}@example.com`;
+  await seedVerifiedUser({
+    email,
+    password: "password12",
+    role: "docente",
+    name: "Vacio",
+    phone: "8888-3333",
+  });
+  await openSuscripciones(page, email);
+  await expect(page.getByTestId("subs-empty-active")).toHaveText("No tienes suscripciones activas.");
+  await expect(page.getByTestId("subs-empty-history")).toHaveText("Todavía no hay historial.");
+});
+
